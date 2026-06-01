@@ -14,11 +14,51 @@ type IconSymbolName = keyof typeof MAPPING;
  * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
  */
 const MAPPING = {
+  // Tabs
   'house.fill': 'home',
+  'plus.circle.fill': 'add-circle',
+  'list.bullet.rectangle.fill': 'view-list',
+  'person.fill': 'person',
+  
+  // Auth & General
   'paperplane.fill': 'send',
-  'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  'chevron.left': 'chevron-left',
+  'arrow.right': 'arrow-forward',
+  'arrow.left': 'arrow-back',
+  'phone.fill': 'phone',
+  'lock.fill': 'lock',
+  'eye.fill': 'visibility',
+  'eye.slash.fill': 'visibility-off',
+  'checkmark.seal.fill': 'verified',
+  'truck.box.fill': 'local-shipping',
+  'clock.fill': 'schedule',
+  'line.3.horizontal': 'menu',
+  'magnifyingglass': 'search',
+  'map.fill': 'map',
+  'location.fill': 'my-location',
+  'mappin.and.ellipse': 'location-on',
+  'chevron.down': 'expand-more',
+  'calendar': 'today',
+  'plus': 'add',
+  'minus': 'remove',
+  'arrow.uturn.backward': 'undo',
+  'pencil': 'edit',
+  'checkmark.circle.fill': 'check-circle',
+  'trash.fill': 'delete',
+  'bell.fill': 'notifications',
+  'shield.fill': 'shield',
+  'rectangle.portrait.and.arrow.right': 'logout',
+  'bolt.fill': 'bolt',
+  'slider.horizontal.3': 'tune',
+  'star.fill': 'star',
+  'shippingbox.fill': 'inventory-2',
+  'xmark.circle.fill': 'cancel',
+  'exclamationmark.triangle.fill': 'warning',
+  'arrow.left.to.line': 'exit-to-app',
+  'arrow.right.to.line': 'keyboard-tab',
 } as IconMapping;
+
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.

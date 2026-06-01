@@ -5,7 +5,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
   darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link' | 'displayLg' | 'headlineLg' | 'headlineLgMobile' | 'titleMd' | 'bodyLg' | 'bodySm' | 'labelMd';
 };
 
 export function ThemedText({
@@ -16,16 +16,24 @@ export function ThemedText({
   ...rest
 }: ThemedTextProps) {
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+  const tintColor = useThemeColor({}, 'tint');
 
   return (
     <Text
       style={[
         { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
+        type === 'default' ? styles.bodyLg : undefined,
+        type === 'title' ? styles.headlineLg : undefined,
+        type === 'defaultSemiBold' ? styles.titleMd : undefined,
+        type === 'subtitle' ? styles.headlineLgMobile : undefined,
+        type === 'link' ? [styles.link, { color: tintColor }] : undefined,
+        type === 'displayLg' ? styles.displayLg : undefined,
+        type === 'headlineLg' ? styles.headlineLg : undefined,
+        type === 'headlineLgMobile' ? styles.headlineLgMobile : undefined,
+        type === 'titleMd' ? styles.titleMd : undefined,
+        type === 'bodyLg' ? styles.bodyLg : undefined,
+        type === 'bodySm' ? styles.bodySm : undefined,
+        type === 'labelMd' ? styles.labelMd : undefined,
         style,
       ]}
       {...rest}
@@ -34,27 +42,49 @@ export function ThemedText({
 }
 
 const styles = StyleSheet.create({
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
+  displayLg: {
+    fontSize: 40,
+    fontWeight: '800',
+    lineHeight: 48,
+    letterSpacing: -1,
   },
-  defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-  },
-  title: {
+  headlineLg: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    lineHeight: 40,
+    letterSpacing: -0.5,
+  },
+  headlineLgMobile: {
+    fontSize: 24,
+    fontWeight: '700',
     lineHeight: 32,
   },
-  subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  titleMd: {
+    fontSize: 18,
+    fontWeight: '600',
+    lineHeight: 26,
+  },
+  bodyLg: {
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 24,
+  },
+  bodySm: {
+    fontSize: 14,
+    fontWeight: '400',
+    lineHeight: 20,
+  },
+  labelMd: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   link: {
-    lineHeight: 30,
-    fontSize: 16,
-    color: '#0a7ea4',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
+
+

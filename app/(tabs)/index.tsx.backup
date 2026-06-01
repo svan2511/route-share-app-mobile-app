@@ -1,22 +1,29 @@
+import { FullScreenLoader } from '@/components/full-screen-loader';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Shadows } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { formatDateTime } from '@/lib/format';
+import { loadsApi, type Load } from '@/services/loads';
 import { routesApi } from '@/services/routes';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, FlatList, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const getInitial = (n: string) => n?.charAt(0)?.toUpperCase() || '?';
+const getColor = (id: number) => ['#8B5CF6', '#0D9488', '#EC4899', '#059669', '#2563EB', '#DC2626'][id % 6];
 
 type DropdownKind = 'origin' | 'dest' | null;
 
 export default function HomeFeedScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const [loads, setLoads] = useState<Load[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [searched, setSearched] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const [origin, setOrigin] = useState('');
@@ -35,9 +42,29 @@ export default function HomeFeedScreen() {
   const originTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const destTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const handleSearch = useCallback(() => {
+  const handleSearch = useCallback(async () => {
     if (!origin || !destination) return;
-    router.push({ pathname: '/browse', params: { from: origin, to: destination } });
+    setLoading(true);
+    setError('');
+    setSearched(true);
+    try {
+      const params: Record<string, string> = {};
+      if (user?.id) params.exclude_user_id = String(user.id);
+      params.from_city = origin;
+      params.to_city = destination;
+      const res = await loadsApi.list(params);
+      setLoads(res.data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to search.');
+    } finally {
+      setLoading(false);
+    }
+  }, [origin, destination, user?.id]);
+
+  useEffect(() => {
+    setSearched(false);
+    setLoads([]);
+    setError('');
   }, [origin, destination]);
 
   async function searchCities(q: string): Promise<string[]> {
@@ -134,6 +161,88 @@ export default function HomeFeedScreen() {
       pulseAnim.setValue(1);
     }
   }, [originLocked, destLocked, pulseAnim]);
+
+  const renderLoadCard = ({ item }: { item: Load }) => {
+    const color = getColor(item.id);
+    const isFull = item.available_space === 0;
+    const isUrgent = item.available_space < 20 && item.available_space > 0;
+    return (
+      <TouchableOpacity
+        style={[styles.card, isFull && styles.cardFull]}
+        activeOpacity={isFull ? 1 : 0.92}
+        onPress={isFull ? undefined : () => router.push({ pathname: '/load-details/[id]', params: { id: String(item.id), from: origin, to: destination } })}
+        disabled={isFull}
+      >
+        {isFull && (
+          <View style={styles.fullBadge}>
+            <IconSymbol name="checkmark.seal.fill" size={9} color="#fff" />
+            <ThemedText type="labelMd" style={styles.fullBadgeText}>Full</ThemedText>
+          </View>
+        )}
+        {isUrgent && (
+          <View style={styles.urgentBadge}>
+            <ThemedText type="labelMd" style={styles.urgentBadgeText}>Filling Fast</ThemedText>
+          </View>
+        )}
+        <View style={[styles.cardTop, isFull && styles.sectionDim]}>
+          <View style={styles.routeRow}>
+            <View style={styles.routeFrom}>
+              <View style={[styles.routeDot, { backgroundColor: '#0D9488' }]} />
+              <ThemedText type="bodySm" style={styles.routeCity}>{item.from_city}</ThemedText>
+            </View>
+            <View style={styles.routeDashBox}>
+              <View style={[styles.routeDashLine, { borderColor: color + '30' }]} />
+              <View style={[styles.matchBadge, { backgroundColor: '#0D948812' }]}>
+                <ThemedText type="labelMd" style={[styles.matchBadgeText, { color: '#0D9488' }]}>Match</ThemedText>
+              </View>
+              <View style={[styles.routeDashLine, { borderColor: color + '30' }]} />
+            </View>
+            <View style={styles.routeTo}>
+              <View style={[styles.routeDot, { backgroundColor: '#DC2626' }]} />
+              <ThemedText type="bodySm" style={styles.routeCity}>{item.to_city}</ThemedText>
+            </View>
+          </View>
+        </View>
+        <View style={[styles.metaRow, isFull && styles.sectionDim]}>
+          <View style={styles.metaChip}>
+            <IconSymbol name="truck.box.fill" size={12} color="#0D9488" />
+            <ThemedText type="labelMd" style={styles.metaChipText}>{item.vehicle_type}</ThemedText>
+          </View>
+          <View style={styles.spaceRow}>
+            <View style={styles.spaceBar}>
+              <LinearGradient
+                colors={item.available_space < 20 ? ['#DC2626', '#BE123C'] : ['#0D9488', '#059669']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={[styles.spaceFill, { width: `${item.available_space}%` }]}
+              />
+            </View>
+            <ThemedText type="labelMd" style={[styles.spaceLabel, { color: isUrgent ? '#DC2626' : '#0D9488' }]}>{item.available_space}%</ThemedText>
+          </View>
+        </View>
+        <View style={[styles.footerRow, isFull && styles.sectionDim]}>
+            <View style={styles.ownerRow}>
+              <View style={[styles.avatar, { backgroundColor: color + '15' }]}>
+                <ThemedText type="titleMd" style={[styles.avatarText, { color }]}>{getInitial(item.user?.business_name || item.user?.full_name)}</ThemedText>
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="bodySm" style={styles.ownerName}>{item.user?.business_name || item.user?.full_name}</ThemedText>
+              <View style={styles.timeChip}>
+                <IconSymbol name="clock.fill" size={10} color="#A8A29E" />
+                <ThemedText type="labelMd" style={styles.timeChipText}>
+                  {item.estimated_pickup_time
+                    ? `Arrives ${formatDateTime(item.estimated_pickup_date!, item.estimated_pickup_time)}`
+                    : formatDateTime(item.departure_date, item.departure_time)}
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+          <View style={[styles.arrowBtn, { backgroundColor: color }]}>
+            <IconSymbol name="chevron.right" size={14} color="#fff" />
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const items = activeDropdown === 'origin' ? origins : dests;
   const isSearching = activeDropdown === 'origin' ? searchingOrigin : searchingDest;
@@ -234,8 +343,10 @@ export default function HomeFeedScreen() {
         </View>
       </SafeAreaView>
 
+      <FullScreenLoader visible={loading} origin={origin} destination={destination} />
+
       <View style={styles.searchSection}>
-        <View style={styles.searchCard}>
+          <View style={styles.searchCard}>
           <View style={styles.fieldBlock}>
             <View style={styles.fieldRow}>
               <View style={[styles.fieldDot, { backgroundColor: '#0D9488' }]} />
@@ -306,6 +417,12 @@ export default function HomeFeedScreen() {
             </View>
           </View>
 
+          <View style={styles.timelineConnector}>
+            <View style={styles.timelineLine} />
+            <View style={[styles.timelineDot, { backgroundColor: '#DC2626' }]} />
+            <View style={styles.timelineLine} />
+          </View>
+
           {activeDropdown === 'dest' && (
             <View style={styles.dropdownInline}>
               <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled style={styles.dropdownScroll}>
@@ -313,12 +430,6 @@ export default function HomeFeedScreen() {
               </ScrollView>
             </View>
           )}
-
-          <View style={styles.timelineConnector}>
-            <View style={styles.timelineLine} />
-            <View style={[styles.timelineDot, { backgroundColor: '#DC2626' }]} />
-            <View style={styles.timelineLine} />
-          </View>
 
           <Animated.View style={[
             { transform: [{ scale: originLocked && destLocked ? pulseAnim : 1 }] },
@@ -351,9 +462,65 @@ export default function HomeFeedScreen() {
         </View>
       </View>
 
-      {activeDropdown && (
-        <TouchableOpacity style={styles.backdropArea} activeOpacity={1} onPress={dismissDropdown} />
-      )}
+      <View style={{ flex: 1 }}>
+        <FlatList
+          key={'fl-' + flatListKey}
+          data={loads}
+          renderItem={renderLoadCard}
+          keyExtractor={item => String(item.id)}
+          contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="always"
+          scrollEnabled={!activeDropdown}
+          ListHeaderComponent={
+            searched && !loading ? (
+              <View style={styles.resultBar}>
+                <View style={styles.resultPill}>
+                  <ThemedText type="labelMd" style={styles.resultPillText}>
+                    {loads.length > 0 ? `${loads.length} ride${loads.length !== 1 ? 's' : ''}` : 'No rides'}
+                  </ThemedText>
+                </View>
+                {loads.length > 0 && (
+                  <ThemedText type="labelMd" style={styles.resultRouteText}>{origin} → {destination}</ThemedText>
+                )}
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            !searched ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconBox}>
+                  <IconSymbol name="magnifyingglass" size={32} color="#0D9488" />
+                </View>
+                <ThemedText type="titleMd" style={styles.emptyTitle}>Ready to roll?</ThemedText>
+                <ThemedText type="bodySm" style={styles.emptyDesc}>
+                  Choose your route and browse available ride
+                </ThemedText>
+              </View>
+            ) : error ? (
+              <View style={styles.emptyState}>
+                <IconSymbol name="exclamationmark.triangle.fill" size={32} color="#DC2626" />
+                <ThemedText type="bodySm" style={styles.emptyDesc}>{error}</ThemedText>
+                <TouchableOpacity onPress={handleSearch} style={styles.retryBtn}>
+                  <ThemedText type="labelMd" style={styles.retryBtnText}>Retry</ThemedText>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconBox}>
+                  <IconSymbol name="truck.box.fill" size={36} color="#D6D3D1" />
+                </View>
+                <ThemedText type="titleMd" style={styles.emptyTitle}>No rides found</ThemedText>
+                <ThemedText type="bodySm" style={styles.emptyDesc}>
+                  No rides found for {origin} → {destination}
+                </ThemedText>
+              </View>
+            )
+          }
+        />
+        {activeDropdown && (
+          <TouchableOpacity style={styles.backdropFlatlist} activeOpacity={1} onPress={dismissDropdown} />
+        )}
+      </View>
     </View>
   );
 }
@@ -383,6 +550,8 @@ const styles = StyleSheet.create({
     ...Shadows.lg, borderWidth: 1, borderColor: '#F0EFEE',
   },
 
+  list: { paddingHorizontal: 20, paddingBottom: 120 },
+
   fieldBlock: {},
   fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   fieldDot: { width: 12, height: 12, borderRadius: 6, marginTop: 2, alignSelf: 'flex-start' },
@@ -404,8 +573,8 @@ const styles = StyleSheet.create({
   searchBtnText: { fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
   searchArrow: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 
-  backdropArea: {
-    flex: 1, backgroundColor: 'transparent',
+  backdropFlatlist: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999,
   },
   dropdownInline: {
     backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#F0EFEE',
@@ -432,4 +601,48 @@ const styles = StyleSheet.create({
   searchingDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#0D9488' },
   searchingHint: { color: '#A8A29E', fontSize: 10, fontWeight: '500' },
 
+  resultBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 16 },
+  resultPill: { backgroundColor: '#0D948812', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
+  resultPillText: { color: '#0D9488', fontSize: 12, fontWeight: '800' },
+  resultRouteText: { color: '#A8A29E', fontSize: 12, fontWeight: '500' },
+
+  card: { backgroundColor: '#fff', borderRadius: 20, padding: 26, marginBottom: 14, ...Shadows.md, borderWidth: 1, borderColor: '#F0EFEE' },
+  cardFull: { opacity: 0.55 },
+  fullBadge: { position: 'absolute', top: -10, left: 16, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DC2626', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: '#fff' },
+  fullBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  urgentBadge: { position: 'absolute', top: -10, right: 16, zIndex: 10, backgroundColor: '#EA580C', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: '#fff' },
+  urgentBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  sectionDim: {},
+  cardTop: { paddingVertical: 6, marginBottom: 20 },
+  routeRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  routeFrom: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  routeDot: { width: 10, height: 10, borderRadius: 5 },
+  routeCity: { color: '#1C1917', fontSize: 14, fontWeight: '700' },
+  routeDashBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 10 },
+  routeDashLine: { flex: 1, borderBottomWidth: 1.5, borderStyle: 'dashed' },
+  matchBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  matchBadgeText: { fontSize: 9, fontWeight: '800' },
+  routeTo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF9', borderRadius: 12, padding: 14, marginBottom: 20, gap: 10, borderWidth: 1, borderColor: '#F0EFEE' },
+  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metaChipText: { color: '#57534E', fontSize: 12, fontWeight: '600' },
+  spaceRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  spaceBar: { flex: 1, height: 5, borderRadius: 3, overflow: 'hidden', backgroundColor: '#F0FDFA' },
+  spaceFill: { height: '100%', borderRadius: 3 },
+  spaceLabel: { fontSize: 10, fontWeight: '800', width: 28, textAlign: 'right' },
+  footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 2 },
+  ownerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatar: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '800' },
+  ownerName: { color: '#1C1917', fontWeight: '700', fontSize: 13 },
+  timeChip: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
+  timeChipText: { color: '#A8A29E', fontSize: 10 },
+  arrowBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
+  emptyIconBox: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#0D948812', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyTitle: { color: '#1C1917', fontWeight: '700', fontSize: 17 },
+  emptyDesc: { color: '#A8A29E', textAlign: 'center', fontSize: 13, paddingHorizontal: 50, lineHeight: 20 },
+  retryBtn: { marginTop: 4, backgroundColor: '#0D9488', paddingHorizontal: 28, paddingVertical: 10, borderRadius: 10 },
+  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 });
