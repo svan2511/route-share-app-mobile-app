@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView, Linking } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, ScrollView, ActivityIndicator, Linking } from 'react-native';
 import { AppLoader } from '@/components/app-loader';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,15 +15,20 @@ import { formatDateTime } from '@/lib/format';
 import { ConfirmModal } from '@/components/confirm-modal';
 import { useToast } from '@/components/toast';
 
+function isRideRunning(load: Load): boolean {
+  if (!load.departure_date || !load.departure_time) return false;
+  const departure = new Date(`${load.departure_date}T${load.departure_time}`);
+  return departure < new Date();
+}
+
 export default function MyPostsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const primaryColor = useThemeColor({}, 'primary');
 
-  const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'expired'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'running' | 'completed'>('active');
   const [activeLoads, setActiveLoads] = useState<Load[]>([]);
   const [completedLoads, setCompletedLoads] = useState<Load[]>([]);
-  const [expiredLoads, setExpiredLoads] = useState<Load[]>([]);
   const [receivedRequests, setReceivedRequests] = useState<BookingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,6 +36,7 @@ export default function MyPostsScreen() {
   const [closeTarget, setCloseTarget] = useState<number | null>(null);
   const [cancelRideTarget, setCancelRideTarget] = useState<number | null>(null);
   const [cancelBookingTarget, setCancelBookingTarget] = useState<number | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const toast = useToast();
 
   const fetchPosts = useCallback(async () => {
@@ -43,7 +49,6 @@ export default function MyPostsScreen() {
       ]);
       setActiveLoads(loadsRes.data.active);
       setCompletedLoads(loadsRes.data.completed);
-      setExpiredLoads(loadsRes.data.expired);
       setReceivedRequests(bookingsRes.data);
     } catch (err: any) {
       setError(err.message || 'Failed to load rides.');
@@ -90,6 +95,10 @@ export default function MyPostsScreen() {
     if (!cancelRideTarget) return;
     try {
       await loadsApi.cancel(cancelRideTarget);
+      const bookingsToCancel = receivedRequests.filter(
+        r => r.load_id === cancelRideTarget && (r.status === 'accepted' || r.status === 'pending')
+      );
+      await Promise.allSettled(bookingsToCancel.map(r => bookingsApi.cancel(r.id)));
       setCancelRideTarget(null);
       fetchPosts();
     } catch (err: any) {
@@ -98,20 +107,26 @@ export default function MyPostsScreen() {
   };
 
   const handleAccept = async (id: number) => {
+    setActionLoading('accept-' + id);
     try {
       await bookingsApi.accept(id);
       fetchPosts();
     } catch (err: any) {
       toast.show({ message: err.message || 'Failed to accept request.', type: 'error' });
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleReject = async (id: number) => {
+    setActionLoading('reject-' + id);
     try {
       await bookingsApi.reject(id);
       fetchPosts();
     } catch (err: any) {
       toast.show({ message: err.message || 'Failed to reject request.', type: 'error' });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -133,8 +148,8 @@ export default function MyPostsScreen() {
   const statusBadge = (status: string) => {
     const map: Record<string, { label: string; color: string; bg: string }> = {
       active: { label: 'Active', color: '#059669', bg: '#ECFDF5' },
-      completed: { label: 'Completed', color: '#2563EB', bg: '#F0FDFA' },
-      expired: { label: 'Expired', color: '#A8A29E', bg: '#F5F5F4' },
+      running: { label: 'Running', color: '#2563EB', bg: '#DBEAFE' },
+      completed: { label: 'Completed', color: '#78716C', bg: '#F5F5F4' },
     };
     return map[status] || map.active;
   };
@@ -151,14 +166,17 @@ export default function MyPostsScreen() {
 
   const getInitial = (name: string) => (user?.business_name?.charAt(0) || name?.charAt(0) || 'U')?.toUpperCase();
 
-  const currentList = activeTab === 'active' ? activeLoads
-    : activeTab === 'completed' ? completedLoads
-    : expiredLoads;
+  const runningLoads = activeLoads.filter(isRideRunning);
+  const actualActiveLoads = activeLoads.filter(l => !isRideRunning(l));
+
+  const currentList = activeTab === 'active' ? actualActiveLoads
+    : activeTab === 'running' ? runningLoads
+    : completedLoads;
 
   const tabs = [
-    { key: 'active' as const, label: `Active (${activeLoads.length})` },
+    { key: 'active' as const, label: `Active (${actualActiveLoads.length})` },
+    { key: 'running' as const, label: `Running (${runningLoads.length})` },
     { key: 'completed' as const, label: `Completed (${completedLoads.length})` },
-    { key: 'expired' as const, label: `Expired (${expiredLoads.length})` },
   ];
 
   const requestsByLoad: Record<number, BookingRequest[]> = {};
@@ -221,7 +239,8 @@ export default function MyPostsScreen() {
         ) : (
           <View style={styles.postsList}>
             {currentList.map(post => {
-              const sb = statusBadge(post.status);
+              const displayStatus = post.status === 'active' && isRideRunning(post) ? 'running' : post.status;
+              const sb = statusBadge(displayStatus);
               const reqs = (requestsByLoad[post.id] || [])
                 .filter(r => r.status !== 'cancelled' && r.status !== 'rejected')
                 .sort(
@@ -264,17 +283,21 @@ export default function MyPostsScreen() {
                   </View>
 
                   {/* Actions */}
-                  {post.status === 'active' && (
+                  {post.status !== 'completed' && (
                     <View style={styles.postActions}>
-                      <TouchableOpacity style={styles.editBtn} onPress={() => router.push({ pathname: '/post', params: { id: String(post.id) } })}>
-                        <IconSymbol name="pencil" size={13} color={primaryColor} />
-                        <ThemedText type="labelMd" style={[styles.actionLabel, { color: primaryColor }]}>Edit</ThemedText>
-                      </TouchableOpacity>
+                      {!isRideRunning(post) && (
+                        <>
+                          <TouchableOpacity style={styles.editBtn} onPress={() => router.push({ pathname: '/post', params: { id: String(post.id) } })}>
+                            <IconSymbol name="pencil" size={13} color={primaryColor} />
+                            <ThemedText type="labelMd" style={[styles.actionLabel, { color: primaryColor }]}>Edit</ThemedText>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.delBtn} onPress={() => handleCancelRide(post.id)}>
+                            <ThemedText type="labelMd" style={[styles.actionLabel, { color: '#DC2626' }]}>Cancel</ThemedText>
+                          </TouchableOpacity>
+                        </>
+                      )}
                       <TouchableOpacity style={styles.completeBtn} onPress={() => handleClose(post.id)}>
                         <ThemedText type="labelMd" style={styles.actionLabel}>Mark Done</ThemedText>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.delBtn} onPress={() => handleCancelRide(post.id)}>
-                        <ThemedText type="labelMd" style={[styles.actionLabel, { color: '#DC2626' }]}>Cancel</ThemedText>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -356,12 +379,30 @@ export default function MyPostsScreen() {
 
                                 {req.status === 'pending' && (
                                   <View style={styles.reqActions}>
-                                    <TouchableOpacity style={[styles.acceptBtn, { backgroundColor: '#059669' }]} onPress={() => handleAccept(req.id)}>
-                                      <IconSymbol name="checkmark" size={14} color="#fff" />
-                                      <ThemedText type="labelMd" style={styles.btnLabel}>Accept</ThemedText>
+                                    <TouchableOpacity
+                                      style={[styles.acceptBtn, { backgroundColor: '#059669' }, actionLoading === 'accept-' + req.id && { opacity: 0.6 }]}
+                                      onPress={() => handleAccept(req.id)}
+                                      disabled={actionLoading !== null}
+                                    >
+                                      {actionLoading === 'accept-' + req.id ? (
+                                        <ActivityIndicator color="#fff" size="small" />
+                                      ) : (
+                                        <>
+                                          <IconSymbol name="checkmark" size={14} color="#fff" />
+                                          <ThemedText type="labelMd" style={styles.btnLabel}>Accept</ThemedText>
+                                        </>
+                                      )}
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={styles.rejectBtn} onPress={() => handleReject(req.id)}>
-                                      <ThemedText type="labelMd" style={styles.rejectLabel}>Reject</ThemedText>
+                                    <TouchableOpacity
+                                      style={[styles.rejectBtn, actionLoading === 'reject-' + req.id && { opacity: 0.6 }]}
+                                      onPress={() => handleReject(req.id)}
+                                      disabled={actionLoading !== null}
+                                    >
+                                      {actionLoading === 'reject-' + req.id ? (
+                                        <ActivityIndicator color="#DC2626" size="small" />
+                                      ) : (
+                                        <ThemedText type="labelMd" style={styles.rejectLabel}>Reject</ThemedText>
+                                      )}
                                     </TouchableOpacity>
                                   </View>
                                 )}

@@ -3,6 +3,7 @@ import { StyleSheet, View, TouchableOpacity, Animated, Dimensions, Modal } from 
 import { ThemedText } from './themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Shadows } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ConfirmModalProps {
   visible: boolean;
@@ -26,6 +27,7 @@ export function ConfirmModal({
   onCancel,
 }: ConfirmModalProps) {
   const primaryColor = useThemeColor({}, 'primary');
+  const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export function ConfirmModal({
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onCancel} activeOpacity={1} />
         </Animated.View>
-        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+        <Animated.View style={[styles.sheet, { transform: [{ translateY }], paddingBottom: 24 + insets.bottom }]}>
           <View style={styles.handle} />
           <ThemedText type="titleMd" style={styles.title}>{title}</ThemedText>
           <ThemedText type="bodySm" style={styles.message}>{message}</ThemedText>
@@ -89,7 +91,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
-    paddingBottom: 40,
     ...Shadows.lg,
   },
   handle: {

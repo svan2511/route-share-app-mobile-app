@@ -25,7 +25,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anil05.routeshare"
+      "package": "com.anil05.routeshare",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",

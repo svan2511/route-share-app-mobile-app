@@ -9,14 +9,14 @@ import { AuthProvider } from '@/context/AuthContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppLoader } from '@/components/app-loader';
 import { ToastProvider } from '@/components/toast';
-import { useNotificationResponder } from '@/hooks/usePushNotifications';
+import { useNotificationResponder, useForegroundSound } from '@/hooks/usePushNotifications';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
-  }),
+  }) as any,
 });
 
 export const unstable_settings = {
@@ -41,10 +41,25 @@ export default function RootLayout() {
     }
   }, []);
 
-  useNotificationResponder((data) => {
-    if (data.load_id) {
-      router.push({ pathname: '/load-details/[id]', params: { id: String(data.load_id) } });
+  useForegroundSound();
+
+  function getNotificationRoute(data: Record<string, any>) {
+    const type = data.type || '';
+    if (type === 'request_accepted' || type === 'request_rejected' || type === 'request_cancelled' || type === 'ride_cancelled') {
+      return { pathname: '/(tabs)/my-bookings' as const };
     }
+    if (type === 'request_sent') {
+      return { pathname: '/(tabs)/my-posts' as const };
+    }
+    if (data.load_id) {
+      return { pathname: '/load-details/[id]' as const, params: { id: String(data.load_id) } };
+    }
+    return null;
+  }
+
+  useNotificationResponder((data) => {
+    const route = getNotificationRoute(data);
+    if (route) router.push(route);
   });
 
   useEffect(() => {

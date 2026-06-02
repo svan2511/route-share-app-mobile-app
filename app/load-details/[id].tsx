@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, Linking, Modal, TextInput } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
@@ -27,7 +28,14 @@ function stopArrivalTime(departureTime: string, offsetMinutes: number): string {
   return `${hour12}:${String(mins).padStart(2, '0')} ${ampm}`;
 }
 
+function isRideRunning(load: { departure_date?: string; departure_time?: string }): boolean {
+  if (!load.departure_date || !load.departure_time) return false;
+  const departure = new Date(`${load.departure_date}T${load.departure_time}`);
+  return departure < new Date();
+}
+
 export default function LoadDetailsScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id, from: searchFrom, to: searchTo } = useLocalSearchParams<{ id: string; from?: string; to?: string }>();
   const primaryColor = useThemeColor({}, 'primary');
@@ -43,6 +51,7 @@ export default function LoadDetailsScreen() {
   const [goodsDesc, setGoodsDesc] = useState('');
   const [bookLoading, setBookLoading] = useState(false);
   const [hasRequested, setHasRequested] = useState(false);
+  const [hasRejected, setHasRejected] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -57,6 +66,7 @@ export default function LoadDetailsScreen() {
       const response = await loadsApi.show(Number(id));
       setLoad(response.data);
       setHasRequested(response.has_requested || false);
+      setHasRejected(response.has_rejected || false);
     } catch (err: any) {
       setError(err.message || 'Failed to load ride details.');
     } finally {
@@ -255,7 +265,7 @@ export default function LoadDetailsScreen() {
             <View style={[styles.heroBadge, { backgroundColor: primaryColor + '12' }]}>
               <IconSymbol name="bolt.fill" size={10} color={primaryColor} />
               <ThemedText type="labelMd" style={[styles.heroBadgeText, { color: primaryColor }]}>
-                {load.status.charAt(0).toUpperCase() + load.status.slice(1)}
+                {(load.status === 'active' && isRideRunning(load) ? 'Running' : load.status.charAt(0).toUpperCase() + load.status.slice(1))}
               </ThemedText>
             </View>
             <ThemedText type="bodySm" style={styles.heroId}>#{load.id}</ThemedText>
@@ -417,16 +427,24 @@ export default function LoadDetailsScreen() {
       </ScrollView>
 
       {!isOwner && (
-        <View style={styles.bottomBar}>
-          <TouchableOpacity
-            style={[styles.bookBtn, { backgroundColor: hasRequested ? '#A8A29E' : primaryColor }, hasRequested && { opacity: 0.7 }]}
-            onPress={openBooking}
-            activeOpacity={0.9}
-            disabled={hasRequested}
-          >
-            <IconSymbol name={hasRequested ? 'checkmark.circle.fill' : 'shippingbox.fill'} size={16} color="#fff" />
-            <ThemedText type="titleMd" style={styles.bookText}>{hasRequested ? 'Already Requested' : 'Request for Booking'}</ThemedText>
-          </TouchableOpacity>
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
+          {(() => {
+            const isDisabled = hasRequested || hasRejected;
+            const label = hasRejected ? 'Request Rejected' : hasRequested ? 'Already Requested' : 'Request for Booking';
+            const bgColor = hasRejected ? '#DC2626' : hasRequested ? '#A8A29E' : primaryColor;
+            const icon = hasRejected ? 'xmark.circle.fill' : hasRequested ? 'checkmark.circle.fill' : 'shippingbox.fill';
+            return (
+              <TouchableOpacity
+                style={[styles.bookBtn, { backgroundColor: bgColor }, isDisabled && { opacity: 0.7 }]}
+                onPress={openBooking}
+                activeOpacity={0.9}
+                disabled={isDisabled}
+              >
+                <IconSymbol name={icon} size={16} color="#fff" />
+                <ThemedText type="titleMd" style={styles.bookText}>{label}</ThemedText>
+              </TouchableOpacity>
+            );
+          })()}
         </View>
       )}
 
@@ -582,7 +600,7 @@ const styles = StyleSheet.create({
   notesCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, flexDirection: 'row', gap: 8, marginBottom: 14, ...Shadows.sm },
   notesText: { color: '#57534E', flex: 1, fontSize: 12 },
 
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', padding: 16, paddingBottom: 32, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F0EFEE', gap: 12 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', padding: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F0EFEE', gap: 12 },
   bookBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, height: 56, ...Shadows.md },
   bookText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 

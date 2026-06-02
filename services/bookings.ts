@@ -27,11 +27,11 @@ export const bookingsApi = {
     get<{ success: boolean; data: BookingRequest[] }>('/bookings/received'),
 
   accept: (id: number) =>
-    put<{ success: boolean; message: string; data?: BookingRequest }>(`/bookings/${id}/accept`, {}),
+    put<{ success: boolean; message: string; data?: BookingRequest }>(`/bookings/${id}/accept`),
 
   reject: (id: number) =>
-    put<{ success: boolean; message: string }>(`/bookings/${id}/reject`, {}),
+    put<{ success: boolean; message: string }>(`/bookings/${id}/reject`),
 
   cancel: (id: number) =>
-    put<{ success: boolean; message: string }>(`/bookings/${id}/cancel`, {}),
+    put<{ success: boolean; message: string }>(`/bookings/${id}/cancel`),
 };

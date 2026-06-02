@@ -33,5 +33,5 @@ export const notificationsApi = {
     patch(`/notifications/${id}/read`),
 
   markAllRead: () =>
-    put('/notifications/read-all', {}),
+    put('/notifications/read-all'),
 };

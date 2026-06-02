@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-//const BASE_URL = 'http://192.168.1.9:8000/api';
-const BASE_URL = 'https://route-share-app.onrender.com/api';
+const BASE_URL = 'http://192.168.1.9:8000/api';
+//const BASE_URL = 'https://route-share-app.onrender.com/api';
 
 const TOKEN_KEY = '@routeshare_token';
 const USER_KEY = '@routeshare_user';
@@ -55,7 +55,13 @@ async function request<T>(
     headers,
   });
 
-  const data = await response.json();
+  let data: any;
+  const text = await response.text();
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = {};
+  }
 
   if (!response.ok) {
     if (response.status === 401) {
@@ -106,10 +112,10 @@ export async function postFormData<T>(endpoint: string, formData: FormData): Pro
   return data;
 }
 
-export function put<T>(endpoint: string, body: unknown): Promise<T> {
+export function put<T>(endpoint: string, body?: unknown): Promise<T> {
   return request<T>(endpoint, {
     method: 'PUT',
-    body: JSON.stringify(body),
+    body: body ? JSON.stringify(body) : undefined,
   });
 }
 

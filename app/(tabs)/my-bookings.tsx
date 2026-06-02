@@ -18,10 +18,11 @@ const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> =
   rejected: { label: 'Rejected', color: '#DC2626', bg: '#FEE2E2' },
   cancelled: { label: 'Cancelled', color: '#78716C', bg: '#F5F5F4' },
   completed: { label: 'Completed', color: '#2563EB', bg: '#DBEAFE' },
-  expired: { label: 'Expired', color: '#78716C', bg: '#F5F5F4' },
+  running: { label: 'Running', color: '#2563EB', bg: '#DBEAFE' },
+  ride_cancelled: { label: 'Ride Cancelled', color: '#DC2626', bg: '#FEE2E2' },
 };
 
-function isExpired(load: any): boolean {
+function isRideRunning(load: any): boolean {
   if (!load?.departure_date || !load?.departure_time) return false;
   const departure = new Date(`${load.departure_date}T${load.departure_time}`);
   return departure < new Date();
@@ -143,25 +144,24 @@ export default function MyBookingsScreen() {
         >
           {filteredRequests.map(req => {
             const load = req.load as any;
-            const expired = !['rejected', 'cancelled', 'completed'].includes(req.status) && isExpired(load);
-            const st = expired ? STATUS_MAP.expired : (STATUS_MAP[req.status] || STATUS_MAP.pending);
+            const rideRunning = !['rejected', 'cancelled', 'completed'].includes(req.status) && isRideRunning(load);
+            const isRideCancelled = load?.status === 'cancelled';
+            const st = isRideCancelled ? STATUS_MAP.ride_cancelled : (rideRunning ? STATUS_MAP.running : (STATUS_MAP[req.status] || STATUS_MAP.pending));
             return (
-              <View key={req.id} style={[styles.card, expired && styles.cardExpired]}>
-                {expired && (
+              <View key={req.id} style={styles.card}>
+                {rideRunning && (
                   <View style={styles.expiredBadge}>
-                    <IconSymbol name="clock.badge.xmark.fill" size={10} color="#78716C" />
-                    <ThemedText type="labelMd" style={styles.expiredBadgeText}>Expired</ThemedText>
+                    <IconSymbol name="clock.fill" size={10} color="#2563EB" />
+                    <ThemedText type="labelMd" style={styles.expiredBadgeText}>Running</ThemedText>
                   </View>
                 )}
                 {/* Card Header - Status + Load Badge + Owner */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
-                    {!expired && (
-                      <View style={[styles.statusPill, { backgroundColor: st.bg }]}>
-                        <View style={[styles.statusPillDot, { backgroundColor: st.color }]} />
-                        <ThemedText type="labelMd" style={[styles.statusPillText, { color: st.color }]}>{st.label}</ThemedText>
-                      </View>
-                    )}
+                    <View style={[styles.statusPill, { backgroundColor: st.bg }]}>
+                      <View style={[styles.statusPillDot, { backgroundColor: st.color }]} />
+                      <ThemedText type="labelMd" style={[styles.statusPillText, { color: st.color }]}>{st.label}</ThemedText>
+                    </View>
                   </View>
                   <View style={styles.cardHeaderRight}>
                     {load?.user?.business_name && (
@@ -243,7 +243,7 @@ export default function MyBookingsScreen() {
                 </View>
 
                 {/* Actions */}
-                {!expired && (
+                {!rideRunning && !isRideCancelled && (
                   <View style={styles.actions}>
                     {req.status === 'accepted' && (
                       <>
@@ -308,8 +308,8 @@ const styles = StyleSheet.create({
 
   card: { backgroundColor: '#fff', borderRadius: 24, padding: 16, marginBottom: 14, ...Shadows.md },
   cardExpired: { opacity: 0.9 },
-  expiredBadge: { position: 'absolute', top: -10, left: 16, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E7E5E4', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: '#fff' },
-  expiredBadgeText: { color: '#78716C', fontSize: 9, fontWeight: '800' },
+  expiredBadge: { position: 'absolute', top: -10, left: 16, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DBEAFE', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: '#fff' },
+  expiredBadgeText: { color: '#2563EB', fontSize: 9, fontWeight: '800' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 },
   cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
   cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, justifyContent: 'flex-end' },

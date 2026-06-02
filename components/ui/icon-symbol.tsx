@@ -43,6 +43,7 @@ const MAPPING = {
   'plus': 'add',
   'minus': 'remove',
   'arrow.uturn.backward': 'undo',
+  'arrow.uturn.forward': 'redo',
   'pencil': 'edit',
   'checkmark.circle.fill': 'check-circle',
   'trash.fill': 'delete',

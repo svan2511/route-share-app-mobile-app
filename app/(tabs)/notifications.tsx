@@ -75,7 +75,12 @@ export default function NotificationsScreen() {
         );
       } catch {}
     }
-    if (item.load_id) {
+    const type = item.type;
+    if (type === 'request_accepted' || type === 'request_rejected' || type === 'request_cancelled' || type === 'ride_cancelled') {
+      router.push({ pathname: '/(tabs)/my-bookings' });
+    } else if (type === 'request_sent') {
+      router.push({ pathname: '/(tabs)/my-posts' });
+    } else if (item.load_id) {
       router.push({ pathname: '/load-details/[id]', params: { id: String(item.load_id) } });
     }
   }

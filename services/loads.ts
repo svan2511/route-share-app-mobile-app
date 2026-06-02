@@ -2,7 +2,7 @@ import { get, post, put, del, patch } from './api';
 
 export interface Load {
   id: number;
-  user: {
+  user?: {
     id: number;
     full_name: string;
     business_name: string;
@@ -49,7 +49,7 @@ export const loadsApi = {
     get<PaginatedResponse<Load>>('/loads', params),
 
   show: (id: number) =>
-    get<{ success: boolean; data: Load; has_requested: boolean }>(`/loads/${id}`),
+    get<{ success: boolean; data: Load; has_requested: boolean; has_rejected: boolean }>(`/loads/${id}`),
 
   create: (data: {
     from_city: string;

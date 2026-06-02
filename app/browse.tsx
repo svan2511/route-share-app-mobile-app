@@ -54,7 +54,7 @@ export default function BrowseScreen() {
 
   useEffect(() => {
     cardEnter.setValue(0);
-    Animated.spring(cardEnter, { toValue: 1, useNativeDriver: true, friction: 6, tension: 80 }).start();
+    Animated.spring(cardEnter, { toValue: 1, useNativeDriver: true, friction: 10, tension: 40 }).start();
   }, [currentIdx]);
 
   useEffect(() => {
@@ -190,8 +190,7 @@ export default function BrowseScreen() {
         <Animated.View style={[styles.swipeHintTop, { opacity: hintOpacity }]}>
           <View style={styles.swipeHintSide}>
             <View style={[styles.swipeIcon, { borderColor: '#DC2626' }]}>
-              <View style={[styles.swipeIconBar, { backgroundColor: '#DC2626' }]} />
-              <IconSymbol name="arrow.left" size={9} color="#DC2626" />
+              <IconSymbol name="arrow.uturn.backward" size={14} color="#DC2626" />
             </View>
             <ThemedText style={styles.swipeHintTopSkip}>Skip this ride</ThemedText>
           </View>
@@ -199,17 +198,16 @@ export default function BrowseScreen() {
           <View style={styles.swipeHintSide}>
             <ThemedText style={styles.swipeHintTopView}>View details</ThemedText>
             <View style={[styles.swipeIcon, { borderColor: '#0D9488' }]}>
-              <View style={[styles.swipeIconBar, { backgroundColor: '#0D9488' }]} />
-              <IconSymbol name="arrow.right" size={9} color="#0D9488" />
+              <IconSymbol name="arrow.uturn.forward" size={14} color="#0D9488" />
             </View>
           </View>
         </Animated.View>
 
-        {/* Diagonal LIVE Badge */}
+        {/* Active Badge */}
         <View style={styles.liveBadge}>
-          <LinearGradient colors={['#DC2626', '#B91C1C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.liveBadgeInner}>
+          <LinearGradient colors={['#059669', '#047857']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.liveBadgeInner}>
             <View style={styles.liveBadgeDot} />
-            <ThemedText style={styles.liveBadgeText}>LIVE</ThemedText>
+            <ThemedText style={styles.liveBadgeText}>ACTIVE</ThemedText>
           </LinearGradient>
         </View>
 
@@ -378,9 +376,9 @@ export default function BrowseScreen() {
     <View style={styles.container}>
       {/* Subtle background pattern */}
       <View style={styles.bgPattern}>
-        <View style={[styles.bgCircle, { top: '10%', left: '-20%', width: 250, height: 250, backgroundColor: '#0D9488', opacity: 0.04 }]} />
-        <View style={[styles.bgCircle, { bottom: '15%', right: '-15%', width: 200, height: 200, backgroundColor: '#DC2626', opacity: 0.03 }]} />
-        <View style={[styles.bgCircle, { top: '45%', right: '30%', width: 120, height: 120, backgroundColor: '#8B5CF6', opacity: 0.04 }]} />
+        <View style={[styles.bgCircle, { top: '10%', left: '-20%', width: 250, height: 250, backgroundColor: '#0D9488', opacity: 0.07 }]} />
+        <View style={[styles.bgCircle, { bottom: '15%', right: '-15%', width: 200, height: 200, backgroundColor: '#DC2626', opacity: 0.06 }]} />
+        <View style={[styles.bgCircle, { top: '45%', right: '30%', width: 120, height: 120, backgroundColor: '#8B5CF6', opacity: 0.07 }]} />
       </View>
 
       {/* Top Bar */}
@@ -406,22 +404,14 @@ export default function BrowseScreen() {
       <View style={styles.cardArea}>
         {currentIdx < loads.length ? (
           <View style={styles.cardStack}>
-            {/* Stacked cards behind */}
-            {loads.slice(currentIdx + 1, currentIdx + 3).reverse().map((item, idx) => {
-              const depth = loads.slice(currentIdx + 1, currentIdx + 3).length - idx - 1;
-              const scale = 1 - (depth + 1) * 0.04;
-              const translateY = (depth + 1) * 8;
+            {/* Stacked paper layers behind */}
+            {loads.slice(currentIdx + 1, currentIdx + 6).reverse().map((item, idx) => {
+              const totalBehind = loads.slice(currentIdx + 1, currentIdx + 6).length;
+              const depth = totalBehind - idx - 1;
+              const offsetY = (depth + 1) * 24;
+              const offsetX = (depth + 1) * 4;
               return (
-                <View key={item.id} style={[styles.stackCard, { transform: [{ scale }, { translateY }], zIndex: 10 - depth }]}>
-                  <View style={styles.stackCardInner}>
-                    <View style={styles.stackCardRow}>
-                      <ThemedText type="bodySm" style={styles.stackCardCity}>{item.from_city}</ThemedText>
-                      <IconSymbol name="arrow.right" size={10} color="#D6D3D1" />
-                      <ThemedText type="bodySm" style={styles.stackCardCity}>{item.to_city}</ThemedText>
-                    </View>
-                    <ThemedText type="labelMd" style={styles.stackCardType}>{item.vehicle_type}</ThemedText>
-                  </View>
-                </View>
+                <View key={item.id} style={[styles.paperLayer, { transform: [{ translateX: offsetX }, { translateY: offsetY }], zIndex: 10 - depth }]} />
               );
             })}
 
@@ -443,6 +433,15 @@ export default function BrowseScreen() {
               {...panResponder.panHandlers}
             >
               <CardContent item={loads[currentIdx]} />
+
+              {swipedOut.length > 0 && (
+                <View style={styles.cardUndoWrap}>
+                  <TouchableOpacity style={styles.cardUndoBtn} onPress={handleUndo} activeOpacity={0.8}>
+                    <IconSymbol name="arrow.uturn.backward" size={10} color="#0D9488" />
+                    <ThemedText type="labelMd" style={styles.cardUndoText}>Undo</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <Animated.View style={[styles.swipeOverlay, styles.likeOverlay, { opacity: likeOpacity, transform: [{ scale: likeScale }] }]}>
                 <View style={styles.swipeOverlayInner}>
@@ -472,10 +471,16 @@ export default function BrowseScreen() {
               You have reviewed all rides for this route.
             </ThemedText>
             {swipedOut.length > 0 && (
-              <TouchableOpacity style={styles.undoBtn} onPress={handleUndo}>
-                <IconSymbol name="arrow.uturn.backward" size={12} color="#0D9488" />
-                <ThemedText type="labelMd" style={styles.undoBtnText}>Undo last</ThemedText>
-              </TouchableOpacity>
+              <View style={styles.emptyActions}>
+                <TouchableOpacity style={styles.undoBtn} onPress={handleUndo}>
+                  <IconSymbol name="arrow.uturn.backward" size={12} color="#0D9488" />
+                  <ThemedText type="labelMd" style={styles.undoBtnText}>Undo Last ({swipedOut.length})</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.searchAgainBtn} onPress={() => router.back()}>
+                  <IconSymbol name="magnifyingglass" size={12} color="#fff" />
+                  <ThemedText type="labelMd" style={styles.searchAgainText}>Search Again</ThemedText>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         )}
@@ -522,13 +527,9 @@ const styles = StyleSheet.create({
   cardArea: { flex: 1, justifyContent: 'center', paddingHorizontal: 16 },
 
   cardStack: { position: 'relative' },
-  stackCard: { position: 'absolute', left: 0, right: 0, top: 0 },
-  stackCardInner: { borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#F0EFEE', ...Shadows.md, backgroundColor: '#fff', alignItems: 'center', gap: 6 },
-  stackCardRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  stackCardCity: { color: '#A8A29E', fontSize: 13, fontWeight: '600' },
-  stackCardType: { color: '#D6D3D1', fontSize: 11, fontWeight: '500' },
+  paperLayer: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%', backgroundColor: '#fff', borderRadius: 28, borderWidth: 1.5, borderColor: '#D6D3D1', ...Shadows.lg },
 
-  card: { backgroundColor: '#fff', borderRadius: 28, padding: 20, ...Shadows.xl, borderWidth: 1, borderColor: '#E7E5E4' },
+  card: { backgroundColor: '#fff', borderRadius: 28, padding: 20, ...Shadows.xl, borderWidth: 1.5, borderColor: '#E7E5E4' },
 
   // Diagonal LIVE Badge
   liveBadge: { position: 'absolute', top: -6, right: -6, zIndex: 20 },
@@ -544,7 +545,7 @@ const styles = StyleSheet.create({
   },
   swipeHintDividerV: { width: 1, height: 14, backgroundColor: '#E7E5E4', marginHorizontal: 4 },
   swipeHintSide: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' },
-  swipeIcon: { flexDirection: 'row', alignItems: 'center', gap: 0, borderWidth: 1.5, borderRadius: 4, paddingLeft: 4, paddingRight: 2, paddingVertical: 2 },
+  swipeIcon: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 6, padding: 4 },
   swipeIconBar: { width: 10, height: 2, borderRadius: 1 },
   swipeHintTopSkip: { color: '#DC2626', fontSize: 11, fontWeight: '700' },
   swipeHintTopView: { color: '#0D9488', fontSize: 11, fontWeight: '700' },
@@ -622,6 +623,12 @@ const styles = StyleSheet.create({
 
   undoBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#F0FDFA', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: '#CCFBF1' },
   undoBtnText: { color: '#0D9488', fontSize: 12, fontWeight: '700' },
+  cardUndoWrap: { position: 'absolute', bottom: 6, left: 0, right: 0, alignItems: 'center', zIndex: 60 },
+  cardUndoBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F0FDFA', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#CCFBF1' },
+  cardUndoText: { color: '#0D9488', fontSize: 10, fontWeight: '700' },
+  emptyActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  searchAgainBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#0D9488', paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20 },
+  searchAgainText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
   bottomBar: { paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FAFAF8' },
 
