@@ -524,6 +524,7 @@ const styles = StyleSheet.create({
   logo: { color: '#fff', fontSize: 18, fontWeight: '800' },
   scrollContent: { padding: 16, paddingBottom: 100 },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
+  loaderIcon: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   retryBtn: { paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10 },
 
   heroCard: { backgroundColor: '#fff', borderRadius: 24, padding: 20, paddingBottom: 16, marginBottom: 14, ...Shadows.md },

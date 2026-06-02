@@ -136,7 +136,7 @@ export default function LoginScreen() {
                 {otp.map((digit, i) => (
                   <TextInput
                     key={i}
-                    ref={r => refs.current[i] = r}
+                    ref={r => { refs.current[i] = r; }}
                     style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
                     keyboardType="number-pad"
                     maxLength={1}

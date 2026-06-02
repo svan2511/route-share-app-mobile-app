@@ -1166,7 +1166,7 @@ const styles = StyleSheet.create({
 
   // Schedule
   fieldVertGap: { marginTop: 14 },
-  fieldLabel: { fontSize: 10, color: '#A8A29E', fontWeight: '700', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, marginLeft: 2 },
+  scheduleFieldLabel: { fontSize: 10, color: '#A8A29E', fontWeight: '700', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, marginLeft: 2 },
   fieldBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F5F5F0', borderRadius: 14, paddingHorizontal: 14, height: 50 },
   fieldBtnDisabled: { opacity: 0.6, backgroundColor: '#F0EFEE' },
   fieldValue: { flex: 1, color: '#1C1917', fontSize: 15, fontWeight: '600' },

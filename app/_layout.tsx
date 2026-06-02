@@ -63,7 +63,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    let minimumDisplayTimeout: NodeJS.Timeout;
+    let minimumDisplayTimeout: number;
     let navigationFinishedTime: number = 0;
     let navigationStartedTime: number = 0;
     let isNavigationEnding = false;
@@ -93,7 +93,7 @@ export default function RootLayout() {
     });
 
     // This event fires when a transition ends
-    const unsubscribeTransitionEnd = navigation.addListener('transitionEnd', () => {
+    const unsubscribeTransitionEnd = navigation.addListener('transitionEnd' as any, () => {
       isNavigationEnding = true;
       navigationFinishedTime = Date.now();
       const elapsedTime = navigationFinishedTime - navigationStartedTime;

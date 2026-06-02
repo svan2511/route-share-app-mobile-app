@@ -14,6 +14,7 @@ export interface Load {
     route_name: string;
     from_city: string;
     to_city: string;
+    destination_offset_minutes?: number;
     stops: Array<{
       id: number;
       stop_name: string;
@@ -32,6 +33,7 @@ export interface Load {
   notes?: string;
   phone: string;
   status: string;
+  destination_stop_id?: number;
   expires_at?: string;
   created_at: string;
 }

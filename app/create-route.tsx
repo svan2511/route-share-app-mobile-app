@@ -121,8 +121,8 @@ export default function CreateRouteScreen() {
 
   const originRef = useRef<TextInput>(null);
   const destRef = useRef<TextInput>(null);
-  const originTimer = useRef<ReturnType<typeof setTimeout>>();
-  const destTimer = useRef<ReturnType<typeof setTimeout>>();
+  const originTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const destTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const inputRefs = useRef<Record<string, TextInput>>({});
 
