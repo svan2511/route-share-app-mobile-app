@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = 'http://192.168.1.9:8000/api';
-//const BASE_URL = 'https://route-share-app.onrender.com/api';
+//const BASE_URL = 'http://192.168.1.9:8000/api';
+const BASE_URL = 'https://route-share-app.onrender.com/api';
 
 const TOKEN_KEY = '@routeshare_token';
 const USER_KEY = '@routeshare_user';
