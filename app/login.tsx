@@ -4,10 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/context/AuthContext';
+import { profileApi } from '@/services/profile';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { sendOtp, verifyOtp } = useAuth();
+  const { sendOtp, verifyOtp, updateUser } = useAuth();
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(['', '', '', '']);
@@ -79,7 +80,17 @@ export default function LoginScreen() {
     try {
       const otpStr = otp.join('');
       const loggedInUser = await verifyOtp(phone, otpStr);
-      if (!loggedInUser.business_name) {
+      let userToCheck = loggedInUser;
+
+      try {
+        const profileRes = await profileApi.get();
+        userToCheck = profileRes.data;
+        updateUser(userToCheck);
+      } catch {
+        // use verifyOtp data as fallback
+      }
+
+      if (!userToCheck?.business_name) {
         router.replace('/business-details');
       } else {
         router.replace('/(tabs)');
