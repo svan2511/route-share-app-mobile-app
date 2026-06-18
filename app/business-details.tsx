@@ -36,16 +36,23 @@ export default function BusinessDetailsScreen() {
     if (!canSubmit) return;
     setLoading(true);
     if (user) {
+      const localUser = {
+        ...user,
+        business_name: details.name,
+        city: details.city,
+        market_type: details.type,
+        ...(details.address ? { address: details.address } : {}),
+      };
       try {
         const response = await profileApi.update({
           business_name: details.name,
           city: details.city,
           market_type: details.type,
-          address: details.address || undefined,
+          ...(details.address ? { address: details.address } : {}),
         });
-        updateUser(response.data);
+        updateUser(response?.data?.business_name ? response.data : localUser);
       } catch {
-        updateUser({ ...user, business_name: details.name, city: details.city, market_type: details.type, address: details.address });
+        updateUser(localUser);
       }
     }
     setLoading(false);

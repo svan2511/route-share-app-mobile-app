@@ -84,7 +84,7 @@ export default function LoginScreen() {
 
       try {
         const profileRes = await profileApi.get();
-        userToCheck = profileRes.data;
+        userToCheck = profileRes?.data || profileRes;
         updateUser(userToCheck);
       } catch {
         // use verifyOtp data as fallback

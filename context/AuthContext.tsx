@@ -12,7 +12,7 @@ interface AuthContextType {
   sendOtp: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, otp: string) => Promise<User>;
   logout: () => Promise<void>;
-  updateUser: (user: User) => void;
+  updateUser: (user: User | null | undefined) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -81,9 +81,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  const updateUser = useCallback((updatedUser: User) => {
+  const updateUser = useCallback((updatedUser: User | null | undefined) => {
+    if (!updatedUser) return;
     setUser(updatedUser);
-    AsyncStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+    AsyncStorage.setItem(USER_KEY, JSON.stringify(updatedUser)).catch(() => {});
   }, []);
 
   return (

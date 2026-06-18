@@ -1,4 +1,4 @@
-import { get, put, putFormData } from './api';
+import { get, post, putFormData } from './api';
 import type { User } from './auth';
 
 export const profileApi = {
@@ -13,5 +13,5 @@ export const profileApi = {
     market_type?: string;
     business_logo?: string;
     address?: string;
-  }) => put<{ success: boolean; message: string; data: User }>('/profile', data),
+  }) => post<{ success: boolean; message: string; data: User }>('/profile', data),
 };
