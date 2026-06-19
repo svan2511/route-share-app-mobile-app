@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, View, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, FlatList, PanResponder, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
@@ -39,12 +40,29 @@ function formatDisplayDate(date: Date): string {
   return `${DAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]}`;
 }
 
-interface ChainItem { name: string; isOrigin?: boolean; isDest?: boolean; isMore?: boolean; }
+interface ChainItem { name: string; isOrigin?: boolean; isDest?: boolean; isMore?: boolean; timeOffset?: number; }
 
-function RouteStopChain({ stops, fromCity, toCity, color, compact }: { stops: RouteStop[]; fromCity: string; toCity: string; color: string; compact?: boolean }) {
+function formatDuration(mins: number): string {
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function formatArrival(departureTime: string, offsetMinutes: number): string {
+  const [h, m] = departureTime.split(':').map(Number);
+  const total = h * 60 + m + offsetMinutes;
+  const hours = Math.floor((total % 1440) / 60);
+  const mins = total % 60;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const h12 = hours % 12 || 12;
+  return `${h12}:${String(mins).padStart(2, '0')} ${ampm}`;
+}
+
+function RouteStopChain({ stops, fromCity, toCity, color, compact, departureTime }: { stops: RouteStop[]; fromCity: string; toCity: string; color: string; compact?: boolean; departureTime?: string }) {
   const chainStops: ChainItem[] = [
     { name: fromCity, isOrigin: true },
-    ...stops.map(s => ({ name: s.stop_name })),
+    ...stops.map(s => ({ name: s.stop_name, timeOffset: s.time_offset_minutes })),
     { name: toCity, isDest: true },
   ];
   const display: ChainItem[] = compact && chainStops.length > 2
@@ -72,27 +90,30 @@ function RouteStopChain({ stops, fromCity, toCity, color, compact }: { stops: Ro
             <View style={styles.chainLabelWrap}>
               {item.isMore ? (
                 <ThemedText type="bodySm" style={[styles.chainLabel, { color: '#A8A29E' }]}>{item.name}</ThemedText>
-              ) : (
-                <>
-                  <ThemedText
-                    type={item.isOrigin || item.isDest ? 'titleMd' : 'bodySm'}
-                    style={[
-                      styles.chainLabel,
-                      { color: item.isOrigin || item.isDest ? '#1C1917' : '#A8A29E' },
-                      (item.isOrigin || item.isDest) && { fontWeight: '700' },
-                    ]}
-                  >
-                    {item.name}
-                  </ThemedText>
-                  {(item.isOrigin || item.isDest) && (
+              ) : item.isOrigin || item.isDest ? (
+                  <>
+                    <ThemedText type="titleMd" style={[styles.chainLabel, { color: '#1C1917', fontWeight: '700' }]}>
+                      {item.name}
+                    </ThemedText>
                     <View style={[styles.chainTag, { backgroundColor: item.isOrigin ? color + '15' : '#FEF2F2' }]}>
                       <ThemedText type="labelMd" style={[styles.chainTagText, { color: item.isOrigin ? color : '#DC2626' }]}>
                         {item.isOrigin ? 'Pickup' : 'Drop'}
                       </ThemedText>
                     </View>
-                  )}
-                </>
-              )}
+                  </>
+                ) : (
+                  <View style={styles.chainStopCol}>
+                    <ThemedText type="bodySm" style={[styles.chainLabel, { color: '#A8A29E' }]}>
+                      {item.name}
+                    </ThemedText>
+                    {item.timeOffset != null && (
+                      <ThemedText type="labelMd" style={[styles.chainTimeOffset, { color: color + '99' }]}>
+                        {formatDuration(item.timeOffset)}
+                        {departureTime ? ` · ${formatArrival(departureTime, item.timeOffset)}` : ''}
+                      </ThemedText>
+                    )}
+                  </View>
+                )}
             </View>
           </View>
         );
@@ -107,6 +128,7 @@ export default function PostLoadScreen() {
   const editingId = editId ? Number(editId) : null;
   const { user } = useAuth();
   const primaryColor = useThemeColor({}, 'primary');
+  const insets = useSafeAreaInsets();
 
   const [loadingForm, setLoadingForm] = useState(!!editingId);
   const [origin, setOrigin] = useState('');
@@ -162,8 +184,14 @@ export default function PostLoadScreen() {
           setEditingTimeExpired(rideDt <= new Date());
         }
         setNotes(ride.notes || '');
-        // Load routes and find the matching one
-        if (ride.route) {
+        // Use route_snapshot if available (frozen copy at ride creation), fallback to live route
+        if (ride.route_snapshot) {
+          setSelectedRoute(ride.route_snapshot);
+          if (ride.destination_stop_id) {
+            const s = ride.route_snapshot.stops.find(st => st.id === ride.destination_stop_id);
+            if (s) setRideToCity(s.stop_name);
+          }
+        } else if (ride.route) {
           const routesRes = await routesApi.myRoutes();
           const match = routesRes.data.find(r => r.id === ride.route!.id);
           if (match) {
@@ -513,6 +541,13 @@ export default function PostLoadScreen() {
     );
   }
 
+  const departureTime24 = (() => {
+    let h = parseInt(departureTime.hour, 10);
+    if (departureTime.period === 'PM' && h !== 12) h += 12;
+    if (departureTime.period === 'AM' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${departureTime.minute}`;
+  })();
+
   return (
     <ThemedView style={styles.screen}>
       {loadingForm ? (
@@ -521,7 +556,7 @@ export default function PostLoadScreen() {
         </View>
       ) : (
       <>
-      <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
+      <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <IconSymbol name="arrow.left" size={20} color="#fff" />
@@ -571,6 +606,7 @@ export default function PostLoadScreen() {
                         style={styles.fieldInput}
                         placeholder=""
                         placeholderTextColor="#A8A29E"
+                        allowFontScaling={false}
                         value={origin}
                         onChangeText={onOriginChange}
                         autoCorrect={false}
@@ -613,6 +649,7 @@ export default function PostLoadScreen() {
                         style={styles.fieldInput}
                         placeholder=""
                         placeholderTextColor="#A8A29E"
+                        allowFontScaling={false}
                         value={destination}
                         onChangeText={onDestChange}
                         autoCorrect={false}
@@ -686,7 +723,7 @@ export default function PostLoadScreen() {
                       </View>
                     </View>
                     <View style={styles.selectedRouteStops}>
-                      <RouteStopChain stops={selectedRoute.stops} fromCity={origin} toCity={destination} color={primaryColor} />
+                      <RouteStopChain stops={selectedRoute.stops} fromCity={origin} toCity={destination} color={primaryColor} departureTime={departureTime24} />
                     </View>
                     {/* Actual destination picker */}
                     <View style={styles.destStopPicker}>
@@ -802,7 +839,7 @@ export default function PostLoadScreen() {
                 <ThemedText type="labelMd" style={styles.fieldLabel}>Space</ThemedText>
                 <View style={[styles.fieldBtn, styles.spaceFieldBtn, { backgroundColor: 'transparent' }]}>
                   <IconSymbol name="cube.box.fill" size={15} color="#0D9488" />
-                  <SpaceSlider value={space} onChange={setSpace} color={primaryColor} />
+                  <SpaceSlider value={space} onChange={setSpace} color={primaryColor} disabled={editingId !== null && space === 0} />
                 </View>
               </View>
             </View>
@@ -821,6 +858,7 @@ export default function PostLoadScreen() {
                 style={styles.notesInput}
                 placeholder="Koi special instructions..."
                 placeholderTextColor="#A8A29E"
+                allowFontScaling={false}
                 value={notes}
                 onChangeText={setNotes}
                 multiline
@@ -1002,9 +1040,11 @@ export default function PostLoadScreen() {
   );
 }
 
-function SpaceSlider({ value, onChange, color }: { value: number; onChange: (v: number) => void; color: string }) {
+function SpaceSlider({ value, onChange, color, disabled }: { value: number; onChange: (v: number) => void; color: string; disabled?: boolean }) {
   const trackRef = useRef<View>(null);
   const trackPos = useRef({ x: 0, width: 0 });
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
   const computePct = (pageX: number) => {
     if (trackPos.current.width <= 0) return value;
@@ -1014,15 +1054,17 @@ function SpaceSlider({ value, onChange, color }: { value: number; onChange: (v: 
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !disabledRef.current,
+      onMoveShouldSetPanResponder: () => !disabledRef.current,
       onPanResponderGrant: (evt) => {
+        if (disabledRef.current) return;
         trackRef.current?.measureInWindow((x, y, w) => {
           trackPos.current = { x, width: w };
           onChange(computePct(evt.nativeEvent.pageX));
         });
       },
       onPanResponderMove: (evt) => {
+        if (disabledRef.current) return;
         onChange(computePct(evt.nativeEvent.pageX));
       },
       onPanResponderRelease: () => {},
@@ -1030,14 +1072,14 @@ function SpaceSlider({ value, onChange, color }: { value: number; onChange: (v: 
   ).current;
 
   return (
-    <View style={styles.sliderWrap}>
+    <View style={[styles.sliderWrap, disabled && { opacity: 0.5 }]}>
       <View ref={trackRef} style={styles.sliderTrackOuter} {...panResponder.panHandlers}>
-        <View style={[styles.sliderFill, { width: `${value}%`, backgroundColor: color }]} />
-        <View style={[styles.sliderThumb, { left: `${value}%`, borderColor: color, backgroundColor: '#fff' }]} />
+        <View style={[styles.sliderFill, { width: `${value}%`, backgroundColor: disabled ? '#D6D3D1' : color }]} />
+        <View style={[styles.sliderThumb, { left: `${value}%`, borderColor: disabled ? '#D6D3D1' : color, backgroundColor: '#fff' }]} />
       </View>
       <View style={styles.sliderValueRow}>
         <ThemedText type="labelMd" style={styles.sliderMinMax}>0%</ThemedText>
-        <ThemedText type="titleMd" style={[styles.sliderValue, { color }]}>{value}%</ThemedText>
+        <ThemedText type="titleMd" style={[styles.sliderValue, { color: disabled ? '#D6D3D1' : color }]}>{value}%</ThemedText>
         <ThemedText type="labelMd" style={styles.sliderMinMax}>100%</ThemedText>
       </View>
     </View>
@@ -1048,7 +1090,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F5F5F0' },
   flex: { flex: 1 },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: { paddingTop: 56, paddingBottom: 20, paddingHorizontal: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  header: { paddingBottom: 20, paddingHorizontal: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   headerInner: { flex: 1 },
@@ -1161,6 +1203,8 @@ const styles = StyleSheet.create({
   chainLabel: { color: '#57534E', fontSize: 14 },
   chainTag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   chainTagText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
+  chainStopCol: { flexDirection: 'column' },
+  chainTimeOffset: { fontSize: 10, fontWeight: '600', marginTop: 1 },
   chainMore: { marginLeft: 30, marginTop: 4 },
   chainMoreText: { color: '#A8A29E', fontSize: 11, fontWeight: '600' },
 

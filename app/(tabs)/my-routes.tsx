@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppLoader } from '@/components/app-loader';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +15,7 @@ import { ConfirmModal } from '@/components/confirm-modal';
 export default function MyRoutesScreen() {
   const router = useRouter();
   const primaryColor = useThemeColor({}, 'primary');
+  const insets = useSafeAreaInsets();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,7 +51,7 @@ export default function MyRoutesScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
+      <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <View style={styles.headerIcon}>
@@ -165,7 +167,7 @@ export default function MyRoutesScreen() {
           </ScrollView>
 
           <TouchableOpacity
-            style={styles.fab}
+            style={[styles.fab, { bottom: insets.bottom + 24 }]}
             onPress={() => router.push('/create-route')}
             activeOpacity={0.85}
           >
@@ -193,7 +195,7 @@ export default function MyRoutesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAF8' },
 
-  header: { paddingTop: 56, paddingBottom: 20, paddingHorizontal: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  header: { paddingBottom: 20, paddingHorizontal: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },

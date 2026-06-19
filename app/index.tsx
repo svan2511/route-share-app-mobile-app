@@ -1,15 +1,17 @@
+import React, { useEffect } from 'react';
+import { Animated, Dimensions, Easing, Image, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
-import { Animated, Dimensions, Easing, Image, StyleSheet, View } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
 export default function SplashScreen1() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuth();
 
@@ -167,7 +169,7 @@ export default function SplashScreen1() {
       </View>
 
       {/* Loading Indicator */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { bottom: insets.bottom + 30 }]}>
         <View style={styles.progressContainer}>
            <Animated.View style={[styles.progressBar, { backgroundColor: primaryColor }]} />
         </View>
@@ -244,7 +246,6 @@ const styles = StyleSheet.create({
   },
   footer: {
     position: 'absolute',
-    bottom: 60,
     width: '100%',
     alignItems: 'center',
   },

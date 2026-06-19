@@ -255,6 +255,7 @@ export default function HomeFeedScreen() {
                     style={styles.fieldInput}
                     placeholder=""
                     placeholderTextColor="#A8A29E"
+                    allowFontScaling={false}
                     value={origin}
                     onChangeText={onOriginChange}
                     autoCorrect={false}
@@ -297,6 +298,7 @@ export default function HomeFeedScreen() {
                     style={styles.fieldInput}
                     placeholder=""
                     placeholderTextColor="#A8A29E"
+                    allowFontScaling={false}
                     value={destination}
                     onChangeText={onDestChange}
                     autoCorrect={false}

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppLoader } from '@/components/app-loader';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { notificationsApi, type AppNotification } from '@/services/notifications';
@@ -100,9 +101,7 @@ export default function NotificationsScreen() {
             <ThemedText style={styles.headerTitle}>Notifications</ThemedText>
           </View>
         </SafeAreaView>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#0D9488" />
-        </View>
+        <AppLoader visible message="Loading notifications..." />
       </View>
     );
   }
@@ -178,7 +177,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: '#1C1917', fontSize: 18, fontWeight: '800' },
   markAllBtn: { color: '#0D9488', fontSize: 12, fontWeight: '700' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingVertical: 8, paddingHorizontal: 16 },
   notifItem: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,

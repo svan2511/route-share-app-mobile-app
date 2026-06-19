@@ -58,6 +58,10 @@ const MAPPING = {
   'exclamationmark.triangle.fill': 'warning',
   'arrow.left.to.line': 'exit-to-app',
   'arrow.right.to.line': 'keyboard-tab',
+  'building.2.fill': 'business',
+  'info.circle.fill': 'info',
+  'xmark': 'close',
+  'ellipsis.circle.fill': 'more-horiz',
 } as IconMapping;
 
 

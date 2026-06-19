@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, Image, View, Dimensions, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
@@ -11,6 +12,7 @@ const { width } = Dimensions.get('window');
 
 export default function SplashScreen2() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const logoScale = React.useRef(new Animated.Value(0.9)).current;
 
@@ -66,7 +68,7 @@ export default function SplashScreen2() {
         <ThemedText type="labelMd" style={styles.subtitle}>Efficiency through Connectivity</ThemedText>
       </Animated.View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { bottom: insets.bottom + 30 }]}>
         <LinearGradient
           colors={[primaryColor, '#134E4A']}
           start={{ x: 0, y: 0 }}
@@ -118,7 +120,6 @@ const styles = StyleSheet.create({
   },
   footer: {
     position: 'absolute',
-    bottom: 60,
     alignItems: 'center',
   },
   bar: {

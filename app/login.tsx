@@ -128,6 +128,7 @@ export default function LoginScreen() {
                   style={styles.input}
                   placeholder="Mobile Number"
                   keyboardType="phone-pad"
+                  allowFontScaling={false}
                   value={phone}
                   onChangeText={setPhone}
                   maxLength={10}
@@ -151,6 +152,7 @@ export default function LoginScreen() {
                     style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
                     keyboardType="number-pad"
                     maxLength={1}
+                    allowFontScaling={false}
                     value={digit}
                     onChangeText={(t) => {
                       const next = [...otp]; next[i] = t; setOtp(next);

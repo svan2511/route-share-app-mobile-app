@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, Linking } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
@@ -23,6 +24,7 @@ export default function RouteMatchScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const primaryColor = useThemeColor({}, 'primary');
+  const insets = useSafeAreaInsets();
   const [load, setLoad] = useState<Load | null>(null);
   const [matches, setMatches] = useState<Load[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +91,7 @@ export default function RouteMatchScreen() {
   if (loading) {
     return (
       <ThemedView style={styles.container}>
-        <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerGradient}>
+        <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.headerGradient, { paddingTop: insets.top + 20 }]}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
               <IconSymbol name="arrow.left" size={20} color="#fff" />
@@ -108,7 +110,7 @@ export default function RouteMatchScreen() {
   if (error) {
     return (
       <ThemedView style={styles.container}>
-        <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerGradient}>
+        <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.headerGradient, { paddingTop: insets.top + 20 }]}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
               <IconSymbol name="arrow.left" size={20} color="#fff" />
@@ -134,7 +136,7 @@ export default function RouteMatchScreen() {
         colors={['#14B8A6', '#0D9488']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={styles.headerGradient}
+        style={[styles.headerGradient, { paddingTop: insets.top + 20 }]}
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -262,7 +264,7 @@ export default function RouteMatchScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAF9' },
-  headerGradient: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  headerGradient: { paddingHorizontal: 20, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   logo: { color: '#fff', fontSize: 18, fontWeight: '800' },

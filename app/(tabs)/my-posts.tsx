@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView, ActivityIndicator, Linking } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppLoader } from '@/components/app-loader';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,8 +22,36 @@ function isRideRunning(load: Load): boolean {
   return departure < new Date();
 }
 
+function stopArrivalTime(departureTime: string, offsetMinutes: number): string {
+  const [h, m] = departureTime.split(':').map(Number);
+  const totalMin = h * 60 + m + offsetMinutes;
+  const hours = Math.floor((totalMin % (24 * 60)) / 60);
+  const mins = totalMin % 60;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${hour12}:${String(mins).padStart(2, '0')} ${ampm}`;
+}
+
+function getStopOffset(routeSnapshot: Load['route_snapshot'], stopName: string, toCity?: string): number {
+  if (!routeSnapshot?.stops) return 0;
+  const match = routeSnapshot.stops.find(
+    s => s.stop_name.toLowerCase() === stopName.toLowerCase()
+  );
+  if (match) return match.time_offset_minutes ?? 0;
+  if (toCity && stopName.toLowerCase() === toCity.toLowerCase()) {
+    const lastStopOffset = routeSnapshot.stops.length > 0
+      ? routeSnapshot.stops[routeSnapshot.stops.length - 1].time_offset_minutes
+      : 0;
+    return routeSnapshot.destination_offset_minutes
+      ? lastStopOffset + routeSnapshot.destination_offset_minutes
+      : lastStopOffset + 60;
+  }
+  return 0;
+}
+
 export default function MyPostsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const primaryColor = useThemeColor({}, 'primary');
 
@@ -192,7 +221,7 @@ export default function MyPostsScreen() {
         colors={['#14B8A6', '#0D9488']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={styles.headerGradient}
+        style={[styles.headerGradient, { paddingTop: insets.top + 20 }]}
       >
         <View style={styles.header}>
           <ThemedText type="headlineLgMobile" style={styles.logo}>My Rides</ThemedText>
@@ -249,7 +278,9 @@ export default function MyPostsScreen() {
               const pendingCount = reqs.filter(r => r.status === 'pending').length;
               const expanded = expandedLoads.has(post.id);
               return (
-                <View key={post.id} style={styles.postCard}>
+                <TouchableOpacity key={post.id} style={styles.postCard} activeOpacity={0.85}
+                  onPress={() => router.push({ pathname: '/load-details/[id]', params: { id: String(post.id) } })}
+                >
                   {/* Header */}
                   <View style={styles.postHeader}>
                     <View style={styles.postRouteRow}>
@@ -285,17 +316,13 @@ export default function MyPostsScreen() {
                   {/* Actions */}
                   {post.status !== 'completed' && (
                     <View style={styles.postActions}>
-                      {!isRideRunning(post) && (
-                        <>
-                          <TouchableOpacity style={styles.editBtn} onPress={() => router.push({ pathname: '/post', params: { id: String(post.id) } })}>
-                            <IconSymbol name="pencil" size={13} color={primaryColor} />
-                            <ThemedText type="labelMd" style={[styles.actionLabel, { color: primaryColor }]}>Edit</ThemedText>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={styles.delBtn} onPress={() => handleCancelRide(post.id)}>
-                            <ThemedText type="labelMd" style={[styles.actionLabel, { color: '#DC2626' }]}>Cancel</ThemedText>
-                          </TouchableOpacity>
-                        </>
-                      )}
+                      <TouchableOpacity style={styles.editBtn} onPress={() => router.push({ pathname: '/post', params: { id: String(post.id) } })}>
+                        <IconSymbol name="pencil" size={13} color={primaryColor} />
+                        <ThemedText type="labelMd" style={[styles.actionLabel, { color: primaryColor }]}>Edit</ThemedText>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.delBtn} onPress={() => handleCancelRide(post.id)}>
+                        <ThemedText type="labelMd" style={[styles.actionLabel, { color: '#DC2626' }]}>Cancel</ThemedText>
+                      </TouchableOpacity>
                       <TouchableOpacity style={styles.completeBtn} onPress={() => handleClose(post.id)}>
                         <ThemedText type="labelMd" style={styles.actionLabel}>Mark Done</ThemedText>
                       </TouchableOpacity>
@@ -350,19 +377,28 @@ export default function MyPostsScreen() {
                                 </View>
 
                                 <View style={styles.reqRouteRow}>
-                                  <View style={styles.reqRouteItem}>
-                                    <View style={[styles.reqRouteDot, { backgroundColor: primaryColor }]} />
-                                    <ThemedText type="bodySm" style={styles.reqRouteLabel}>Pickup</ThemedText>
+                                  <View style={styles.reqRouteCol}>
+                                    <View style={[styles.reqRouteDot, { backgroundColor: '#0D9488' }]} />
+                                    <ThemedText type="labelMd" style={styles.reqRouteLabel}>Pickup</ThemedText>
                                     <ThemedText type="titleMd" style={styles.reqRouteCity}>{req.pickup_city}</ThemedText>
+                                    {post.departure_time && (
+                                      <ThemedText type="labelMd" style={styles.reqRouteTime}>
+                                        {stopArrivalTime(post.departure_time, getStopOffset(post.route_snapshot, req.pickup_city))}
+                                      </ThemedText>
+                                    )}
                                   </View>
-                                  <View style={styles.reqConnector}>
-                                    <View style={styles.reqConnLine} />
-                                    <IconSymbol name="arrow.down" size={9} color="#D6D3D1" />
+                                  <View style={styles.reqRouteDivider}>
+                                    <IconSymbol name="arrow.right" size={12} color="#D6D3D1" />
                                   </View>
-                                  <View style={styles.reqRouteItem}>
+                                  <View style={styles.reqRouteCol}>
                                     <View style={[styles.reqRouteDot, { backgroundColor: '#DC2626' }]} />
-                                    <ThemedText type="bodySm" style={styles.reqRouteLabel}>Drop</ThemedText>
+                                    <ThemedText type="labelMd" style={styles.reqRouteLabel}>Drop</ThemedText>
                                     <ThemedText type="titleMd" style={styles.reqRouteCity}>{req.drop_city}</ThemedText>
+                                    {post.departure_time && (
+                                      <ThemedText type="labelMd" style={styles.reqRouteTime}>
+                                        {stopArrivalTime(post.departure_time, getStopOffset(post.route_snapshot, req.drop_city, post.to_city))}
+                                      </ThemedText>
+                                    )}
                                   </View>
                                 </View>
 
@@ -420,14 +456,14 @@ export default function MyPostsScreen() {
                       )}
                     </>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
         )}
       </ScrollView>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: primaryColor }]} onPress={() => router.push('/post')} activeOpacity={0.85}>
+      <TouchableOpacity style={[styles.fab, { backgroundColor: primaryColor, bottom: insets.bottom + 24 }]} onPress={() => router.push('/post')} activeOpacity={0.85}>
         <IconSymbol name="plus" size={22} color="#fff" />
       </TouchableOpacity>
 
@@ -466,7 +502,7 @@ export default function MyPostsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAF9' },
-  headerGradient: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  headerGradient: { paddingHorizontal: 20, paddingBottom: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   logo: { color: '#fff', fontSize: 20, fontWeight: '800' },
   profilePlaceholder: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
@@ -518,13 +554,13 @@ const styles = StyleSheet.create({
   reqStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginLeft: 6 },
   reqStatusText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
 
-  reqRouteRow: { marginBottom: 8 },
-  reqRouteItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  reqRouteDot: { width: 7, height: 7, borderRadius: 3.5 },
-  reqRouteLabel: { color: '#A8A29E', fontSize: 8, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, width: 40 },
-  reqRouteCity: { color: '#1C1917', fontSize: 14, fontWeight: '700', flex: 1 },
-  reqConnector: { alignItems: 'center', paddingVertical: 4, marginLeft: 3 },
-  reqConnLine: { width: 1.5, height: 12, backgroundColor: '#E7E5E4' },
+  reqRouteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  reqRouteCol: { flex: 1, gap: 2 },
+  reqRouteDot: { width: 7, height: 7, borderRadius: 3.5, marginBottom: 2 },
+  reqRouteLabel: { color: '#A8A29E', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  reqRouteCity: { color: '#1C1917', fontSize: 14, fontWeight: '700' },
+  reqRouteTime: { color: '#78716C', fontSize: 10, fontWeight: '500', marginTop: 1 },
+  reqRouteDivider: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
 
   reqGoodsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
   reqGoodsText: { color: '#57534E', fontSize: 11, flex: 1 },

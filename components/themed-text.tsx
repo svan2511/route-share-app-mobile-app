@@ -20,6 +20,7 @@ export function ThemedText({
 
   return (
     <Text
+      allowFontScaling={false}
       style={[
         { color },
         type === 'default' ? styles.bodyLg : undefined,
@@ -44,46 +45,46 @@ export function ThemedText({
 const styles = StyleSheet.create({
   displayLg: {
     fontSize: 40,
-    fontWeight: '800',
+    fontFamily: 'Inter_800ExtraBold',
     lineHeight: 48,
     letterSpacing: -1,
   },
   headlineLg: {
     fontSize: 32,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     lineHeight: 40,
     letterSpacing: -0.5,
   },
   headlineLgMobile: {
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     lineHeight: 32,
   },
   titleMd: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     lineHeight: 26,
   },
   bodyLg: {
     fontSize: 16,
-    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
     lineHeight: 24,
   },
   bodySm: {
     fontSize: 14,
-    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
     lineHeight: 20,
   },
   labelMd: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     lineHeight: 16,
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
   link: {
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
   },
 });
 

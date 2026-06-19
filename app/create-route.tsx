@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
@@ -93,6 +94,7 @@ export default function CreateRouteScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const editingId = id ? Number(id) : null;
+  const insets = useSafeAreaInsets();
 
   const [loadingForm, setLoadingForm] = useState(!!editingId);
   const [origin, setOrigin] = useState('');
@@ -350,7 +352,7 @@ export default function CreateRouteScreen() {
         </View>
       ) : (
       <>
-      <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
+      <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <IconSymbol name="arrow.left" size={20} color="#fff" />
@@ -405,6 +407,7 @@ export default function CreateRouteScreen() {
                       style={styles.fieldInput}
                       placeholder=""
                       placeholderTextColor="#A8A29E"
+                      allowFontScaling={false}
                       value={origin}
                       onChangeText={handleOriginChange}
                       autoCorrect={false}
@@ -438,16 +441,17 @@ export default function CreateRouteScreen() {
                               <IconSymbol name="minus" size={14} color="#0D9488" />
                             </TouchableOpacity>
                             {editingDuration === stop.id ? (
-                              <TextInput
-                                style={styles.durationInput}
-                                value={durationInputs[stop.id] || ''}
-                                onChangeText={(v) => setDurationInputs(prev => ({ ...prev, [stop.id]: v }))}
-                                onBlur={() => commitDurationEdit(stop.id)}
-                                onSubmitEditing={() => commitDurationEdit(stop.id)}
-                                autoFocus
-                                selectTextOnFocus
-                                keyboardType="default"
-                              />
+                        <TextInput
+                          style={styles.durationInput}
+                          value={durationInputs[stop.id] || ''}
+                          onChangeText={(v) => setDurationInputs(prev => ({ ...prev, [stop.id]: v }))}
+                          onBlur={() => commitDurationEdit(stop.id)}
+                          onSubmitEditing={() => commitDurationEdit(stop.id)}
+                          allowFontScaling={false}
+                          autoFocus
+                          selectTextOnFocus
+                          keyboardType="default"
+                        />
                             ) : (
                               <TouchableOpacity style={styles.durationCapsule} onPress={() => startDurationEdit(stop.id, stop.durationMinutes)} activeOpacity={0.7}>
                                 <IconSymbol name="clock.fill" size={13} color="#0D9488" />
@@ -467,6 +471,7 @@ export default function CreateRouteScreen() {
                           style={styles.fieldInput}
                           placeholder={`Stop ${idx + 1} name`}
                           placeholderTextColor="#A8A29E"
+                          allowFontScaling={false}
                           value={stopInputs[stop.id] || ''}
                           onChangeText={(v) => handleStopChange(stop.id, v)}
                           autoCorrect={false}
@@ -514,6 +519,7 @@ export default function CreateRouteScreen() {
                             onChangeText={(v) => setDurationInputs(prev => ({ ...prev, '__dest__': v }))}
                             onBlur={() => commitDurationEdit('__dest__')}
                             onSubmitEditing={() => commitDurationEdit('__dest__')}
+                            allowFontScaling={false}
                             autoFocus
                             selectTextOnFocus
                             keyboardType="default"
@@ -538,6 +544,7 @@ export default function CreateRouteScreen() {
                       style={styles.fieldInput}
                       placeholder=""
                       placeholderTextColor="#A8A29E"
+                      allowFontScaling={false}
                       value={destination}
                       onChangeText={handleDestChange}
                       autoCorrect={false}
@@ -567,6 +574,7 @@ export default function CreateRouteScreen() {
               style={styles.nameInput}
               placeholder="e.g. Saharanpur to Delhi Highway"
               placeholderTextColor="#A8A29E"
+              allowFontScaling={false}
               value={routeName}
               onChangeText={setRouteName}
               autoCorrect={false}
@@ -660,7 +668,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAF8' },
   flex: { flex: 1 },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: { paddingTop: 56, paddingBottom: 20, paddingHorizontal: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  header: { paddingBottom: 20, paddingHorizontal: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   headerInner: { flex: 1 },

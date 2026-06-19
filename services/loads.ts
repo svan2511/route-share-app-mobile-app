@@ -34,6 +34,20 @@ export interface Load {
   phone: string;
   status: string;
   destination_stop_id?: number;
+  route_snapshot?: {
+    id: number;
+    route_id: number;
+    route_name: string;
+    from_city: string;
+    to_city: string;
+    destination_offset_minutes?: number;
+    stops: Array<{
+      id: number;
+      stop_name: string;
+      stop_order: number;
+      time_offset_minutes: number;
+    }>;
+  };
   expires_at?: string;
   created_at: string;
 }

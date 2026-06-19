@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, Linking, RefreshControl } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppLoader } from '@/components/app-loader';
 import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,9 +29,37 @@ function isRideRunning(load: any): boolean {
   return departure < new Date();
 }
 
+function stopArrivalTime(departureTime: string, offsetMinutes: number): string {
+  const [h, m] = departureTime.split(':').map(Number);
+  const totalMin = h * 60 + m + offsetMinutes;
+  const hours = Math.floor((totalMin % (24 * 60)) / 60);
+  const mins = totalMin % 60;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${hour12}:${String(mins).padStart(2, '0')} ${ampm}`;
+}
+
+function getStopOffset(routeSnapshot: any, stopName: string, toCity?: string): number {
+  if (!routeSnapshot?.stops) return 0;
+  const match = routeSnapshot.stops.find(
+    (s: any) => s.stop_name.toLowerCase() === stopName.toLowerCase()
+  );
+  if (match) return match.time_offset_minutes ?? 0;
+  if (toCity && stopName.toLowerCase() === toCity.toLowerCase()) {
+    const lastStopOffset = routeSnapshot.stops.length > 0
+      ? routeSnapshot.stops[routeSnapshot.stops.length - 1].time_offset_minutes
+      : 0;
+    return routeSnapshot.destination_offset_minutes
+      ? lastStopOffset + routeSnapshot.destination_offset_minutes
+      : lastStopOffset + 60;
+  }
+  return 0;
+}
+
 export default function MyBookingsScreen() {
   const primaryColor = useThemeColor({}, 'primary');
-  const [activeTab, setActiveTab] = useState<'accepted' | 'rejected'>('accepted');
+  const insets = useSafeAreaInsets();
+  const [activeTab, setActiveTab] = useState<'pending' | 'accepted' | 'rejected'>('pending');
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -77,16 +106,18 @@ export default function MyBookingsScreen() {
   };
 
   const filteredRequests = requests.filter(r => {
-    if (activeTab === 'accepted') return r.status === 'pending' || r.status === 'accepted';
+    if (activeTab === 'pending') return r.status === 'pending';
+    if (activeTab === 'accepted') return r.status === 'accepted';
     return r.status === 'rejected';
   });
 
-  const acceptedCount = requests.filter(r => r.status === 'pending' || r.status === 'accepted').length;
+  const pendingCount = requests.filter(r => r.status === 'pending').length;
+  const acceptedCount = requests.filter(r => r.status === 'accepted').length;
   const rejectedCount = requests.filter(r => r.status === 'rejected').length;
 
   return (
     <ThemedView style={styles.container}>
-      <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
+      <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerTop}>
           <View style={styles.headerIcon}>
             <IconSymbol name="shippingbox.fill" size={18} color="#fff" />
@@ -103,23 +134,33 @@ export default function MyBookingsScreen() {
       </LinearGradient>
 
       {/* Tabs */}
-      <View style={styles.tabRow}>
-        <TouchableOpacity
-          onPress={() => setActiveTab('accepted')}
-          style={[styles.tabChip, activeTab === 'accepted' && { backgroundColor: primaryColor + '12', borderColor: primaryColor }]}
-        >
-          <ThemedText type="labelMd" style={[styles.tabText, activeTab === 'accepted' && { color: primaryColor }]}>
-            Accepted ({acceptedCount})
-          </ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setActiveTab('rejected')}
-          style={[styles.tabChip, activeTab === 'rejected' && { backgroundColor: primaryColor + '12', borderColor: primaryColor }]}
-        >
-          <ThemedText type="labelMd" style={[styles.tabText, activeTab === 'rejected' && { color: primaryColor }]}>
-            Rejected ({rejectedCount})
-          </ThemedText>
-        </TouchableOpacity>
+      <View style={styles.tabRowOuter}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRowContent}>
+          <TouchableOpacity
+            onPress={() => setActiveTab('pending')}
+            style={[styles.tabChip, activeTab === 'pending' && { backgroundColor: primaryColor + '12', borderColor: primaryColor }]}
+          >
+            <ThemedText type="labelMd" style={[styles.tabText, activeTab === 'pending' && { color: primaryColor }]}>
+              Pending ({pendingCount})
+            </ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActiveTab('accepted')}
+            style={[styles.tabChip, activeTab === 'accepted' && { backgroundColor: primaryColor + '12', borderColor: primaryColor }]}
+          >
+            <ThemedText type="labelMd" style={[styles.tabText, activeTab === 'accepted' && { color: primaryColor }]}>
+              Accepted ({acceptedCount})
+            </ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActiveTab('rejected')}
+            style={[styles.tabChip, activeTab === 'rejected' && { backgroundColor: primaryColor + '12', borderColor: primaryColor }]}
+          >
+            <ThemedText type="labelMd" style={[styles.tabText, activeTab === 'rejected' && { color: primaryColor }]}>
+              Rejected ({rejectedCount})
+            </ThemedText>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       <AppLoader visible={loading} message="Loading bookings..." />
@@ -130,10 +171,10 @@ export default function MyBookingsScreen() {
             <IconSymbol name="shippingbox.fill" size={40} color="#D6D3D1" />
           </View>
           <ThemedText type="bodyLg" style={styles.emptyText}>
-            {activeTab === 'accepted' ? 'No active bookings' : 'No rejected bookings'}
+            {activeTab === 'pending' ? 'No pending bookings' : activeTab === 'accepted' ? 'No accepted bookings' : 'No rejected bookings'}
           </ThemedText>
           <ThemedText type="bodySm" style={styles.emptySub}>
-            {activeTab === 'accepted' ? 'Your accepted bookings will appear here' : 'Rejected requests will appear here'}
+            {activeTab === 'pending' ? 'Your pending requests will appear here' : activeTab === 'accepted' ? 'Your accepted bookings will appear here' : 'Rejected requests will appear here'}
           </ThemedText>
         </View>
       ) : (
@@ -149,12 +190,6 @@ export default function MyBookingsScreen() {
             const st = isRideCancelled ? STATUS_MAP.ride_cancelled : (rideRunning ? STATUS_MAP.running : (STATUS_MAP[req.status] || STATUS_MAP.pending));
             return (
               <View key={req.id} style={styles.card}>
-                {rideRunning && (
-                  <View style={styles.expiredBadge}>
-                    <IconSymbol name="clock.fill" size={10} color="#2563EB" />
-                    <ThemedText type="labelMd" style={styles.expiredBadgeText}>Running</ThemedText>
-                  </View>
-                )}
                 {/* Card Header - Status + Load Badge + Owner */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
@@ -185,6 +220,11 @@ export default function MyBookingsScreen() {
                     <View style={styles.loadRouteStop}>
                       <ThemedText type="labelMd" style={styles.loadRouteLabel}>Origin</ThemedText>
                       <ThemedText type="bodySm" style={styles.loadRouteCity}>{load.from_city}</ThemedText>
+                      {load.departure_time && (
+                        <ThemedText type="labelMd" style={styles.loadRouteTime}>
+                          {stopArrivalTime(load.departure_time, 0)}
+                        </ThemedText>
+                      )}
                     </View>
                     <View style={styles.loadRouteArrow}>
                       <View style={[styles.loadRouteLine, { backgroundColor: primaryColor + '20' }]} />
@@ -194,6 +234,11 @@ export default function MyBookingsScreen() {
                     <View style={styles.loadRouteStop}>
                       <ThemedText type="labelMd" style={styles.loadRouteLabel}>Final Destination</ThemedText>
                       <ThemedText type="bodySm" style={styles.loadRouteCity}>{load.to_city}</ThemedText>
+                      {load.departure_time && (
+                        <ThemedText type="labelMd" style={styles.loadRouteTime}>
+                          {stopArrivalTime(load.departure_time, getStopOffset(load.route_snapshot, load.to_city, load.to_city))}
+                        </ThemedText>
+                      )}
                     </View>
                   </View>
                 )}
@@ -213,6 +258,11 @@ export default function MyBookingsScreen() {
                     <View style={styles.bookingStop}>
                       <ThemedText type="labelMd" style={styles.bookingStopLabel}>Pickup</ThemedText>
                       <ThemedText type="titleMd" style={[styles.bookingStopCity, { color: primaryColor }]}>{req.pickup_city}</ThemedText>
+                      {load?.departure_time && (
+                        <ThemedText type="labelMd" style={styles.bookingStopTime}>
+                          {stopArrivalTime(load.departure_time, getStopOffset(load.route_snapshot, req.pickup_city))}
+                        </ThemedText>
+                      )}
                     </View>
                     <View style={styles.bookingArrow}>
                       <View style={[styles.bookingLine, { backgroundColor: primaryColor + '20' }]} />
@@ -222,6 +272,11 @@ export default function MyBookingsScreen() {
                     <View style={styles.bookingStop}>
                       <ThemedText type="labelMd" style={styles.bookingStopLabel}>Drop</ThemedText>
                       <ThemedText type="titleMd" style={[styles.bookingStopCity, { color: '#DC2626' }]}>{req.drop_city}</ThemedText>
+                      {load?.departure_time && (
+                        <ThemedText type="labelMd" style={styles.bookingStopTime}>
+                          {stopArrivalTime(load.departure_time, getStopOffset(load.route_snapshot, req.drop_city, load.to_city))}
+                        </ThemedText>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -288,7 +343,7 @@ export default function MyBookingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F0' },
 
-  header: { paddingTop: 56, paddingBottom: 20, paddingHorizontal: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { paddingBottom: 20, paddingHorizontal: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
@@ -298,7 +353,8 @@ const styles = StyleSheet.create({
   headerCountLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   scroll: { padding: 16, paddingBottom: 40 },
-  tabRow: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 16, gap: 8 },
+  tabRowOuter: { paddingHorizontal: 16, paddingTop: 16 },
+  tabRowContent: { flexDirection: 'row', gap: 8 },
   tabChip: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E7E5E4' },
   tabText: { color: '#78716C', fontWeight: '700', fontSize: 12 },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
@@ -308,9 +364,7 @@ const styles = StyleSheet.create({
 
   card: { backgroundColor: '#fff', borderRadius: 24, padding: 16, marginBottom: 14, ...Shadows.md },
   cardExpired: { opacity: 0.9 },
-  expiredBadge: { position: 'absolute', top: -10, left: 16, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DBEAFE', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: '#fff' },
-  expiredBadgeText: { color: '#2563EB', fontSize: 9, fontWeight: '800' },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 },
   cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
   cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, justifyContent: 'flex-end' },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
@@ -322,30 +376,32 @@ const styles = StyleSheet.create({
   loadBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F5F5F4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   loadBadgeText: { color: '#78716C', fontSize: 9, fontWeight: '700' },
 
-  loadRouteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 10 },
-  loadRouteStop: { alignItems: 'center', gap: 3 },
+  loadRouteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 6 },
+  loadRouteStop: { alignItems: 'center', gap: 2, flexShrink: 1 },
   loadRouteLabel: { color: '#A8A29E', fontSize: 8, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   loadRouteCity: { color: '#78716C', fontSize: 12, fontWeight: '600' },
+  loadRouteTime: { color: '#D6D3D1', fontSize: 9, fontWeight: '700' },
   loadRouteArrow: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, marginHorizontal: 10 },
   loadRouteLine: { flex: 1, height: 1 },
 
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#F0EFEE' },
   dividerBadge: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 
-  bookingSection: { marginBottom: 10 },
+  bookingSection: { marginBottom: 6 },
   bookingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
-  bookingStop: { alignItems: 'center', gap: 2 },
+  bookingStop: { alignItems: 'center', gap: 1, flexShrink: 1 },
   bookingStopLabel: { color: '#A8A29E', fontSize: 8, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   bookingStopCity: { fontSize: 15, fontWeight: '800' },
+  bookingStopTime: { color: '#D6D3D1', fontSize: 9, fontWeight: '700' },
   bookingArrow: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, marginHorizontal: 10 },
   bookingLine: { flex: 1, height: 1 },
 
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 6 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   metaText: { color: '#78716C', fontSize: 10, fontWeight: '600' },
 
-  actions: { paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F5F5F4' },
+  actions: { paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F5F5F4' },
   confirmedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   confirmedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10 },
   confirmedText: { color: '#059669', fontWeight: '800', fontSize: 12 },

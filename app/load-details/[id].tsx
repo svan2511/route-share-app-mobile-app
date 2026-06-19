@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, Linking, Modal, TextInput } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, Linking, Modal, TextInput, Platform, Keyboard } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TrustBadge } from '@/components/trust-badge';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Shadows } from '@/constants/theme';
@@ -52,7 +53,14 @@ export default function LoadDetailsScreen() {
   const [bookLoading, setBookLoading] = useState(false);
   const [hasRequested, setHasRequested] = useState(false);
   const [hasRejected, setHasRejected] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const toast = useToast();
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', e => setKeyboardHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   useEffect(() => {
     fetchLoad();
@@ -119,6 +127,7 @@ export default function LoadDetailsScreen() {
       });
       setShowBooking(false);
       toast.show({ message: 'Request sent! Owner will review shortly.', type: 'success' });
+      setTimeout(() => router.replace('/(tabs)/my-bookings'), 600);
     } catch (err: any) {
       toast.show({ message: err.message || 'Failed to send booking request.', type: 'error' });
     } finally {
@@ -129,7 +138,7 @@ export default function LoadDetailsScreen() {
   if (loading) {
     return (
       <ThemedView style={styles.container}>
-        <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerGradient}>
+        <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.headerGradient, { paddingTop: insets.top + 20 }]}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
               <IconSymbol name="arrow.left" size={20} color="#fff" />
@@ -151,7 +160,7 @@ export default function LoadDetailsScreen() {
   if (error || !load) {
     return (
       <ThemedView style={styles.container}>
-        <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerGradient}>
+        <LinearGradient colors={['#14B8A6', '#0D9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.headerGradient, { paddingTop: insets.top + 20 }]}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
               <IconSymbol name="arrow.left" size={20} color="#fff" />
@@ -172,7 +181,8 @@ export default function LoadDetailsScreen() {
   }
 
   const l = load!;
-  const stops = l.route?.stops || [];
+  const routeData = l.route_snapshot || l.route;
+  const stops = routeData?.stops || [];
   const destIdx = l.destination_stop_id
     ? stops.findIndex(s => s.id === l.destination_stop_id)
     : -1;
@@ -181,8 +191,8 @@ export default function LoadDetailsScreen() {
     : stops;
   const destOffset = destIdx >= 0
     ? stops[destIdx].time_offset_minutes
-    : (l.route?.destination_offset_minutes
-      ? (stops.length > 0 ? stops[stops.length - 1].time_offset_minutes : 0) + l.route.destination_offset_minutes
+    : (routeData?.destination_offset_minutes
+      ? (stops.length > 0 ? stops[stops.length - 1].time_offset_minutes : 0) + routeData.destination_offset_minutes
       : (stops.length > 0 ? stops[stops.length - 1].time_offset_minutes + 60 : 60));
 
   const [h, m] = l.departure_time.split(':').map(Number);
@@ -205,7 +215,9 @@ export default function LoadDetailsScreen() {
   function cityOffset(city: string): number {
     if (city === l.from_city) return 0;
     const s = stops.find(st => st.stop_name === city);
-    return s ? s.time_offset_minutes : 0;
+    if (s) return s.time_offset_minutes;
+    if (city === l.to_city) return destOffset;
+    return 0;
   }
 
   const allPoints = [
@@ -233,13 +245,29 @@ export default function LoadDetailsScreen() {
   const nowH = now.getHours(), nowM = now.getMinutes();
   const nowStr = `${nowH % 12 || 12}:${String(nowM).padStart(2, '0')} ${nowH >= 12 ? 'PM' : 'AM'}`;
 
+  const detailStops = l.route_snapshot?.stops || l.route?.stops || [];
+  const searchFromLower = (searchFrom || '').toLowerCase();
+  const searchToLower = (searchTo || '').toLowerCase();
+  const detailPickupStop = searchFromLower
+    ? detailStops.find(s => s.stop_name.toLowerCase().includes(searchFromLower))
+    : undefined;
+  const detailPickupName = detailPickupStop?.stop_name || l.from_city;
+  const detailPickupOffset = detailPickupStop ? detailPickupStop.time_offset_minutes : 0;
+  const detailDropStop = searchToLower
+    ? detailStops.find(s => s.stop_name.toLowerCase().includes(searchToLower))
+    : undefined;
+  const detailDropOffset = detailDropStop
+    ? detailDropStop.time_offset_minutes
+    : destOffset;
+  const detailDropName = detailDropStop?.stop_name || l.to_city;
+
   return (
     <ThemedView style={styles.container}>
       <LinearGradient
         colors={['#14B8A6', '#0D9488']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={styles.headerGradient}
+        style={[styles.headerGradient, { paddingTop: insets.top + 20 }]}
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -269,6 +297,27 @@ export default function LoadDetailsScreen() {
               </ThemedText>
             </View>
             <ThemedText type="bodySm" style={styles.heroId}>#{load.id}</ThemedText>
+          </View>
+        </View>
+
+        {/* Pickup & Drop Stops */}
+        <View style={styles.detailStopRow}>
+          <View style={[styles.detailStopBlock, { borderLeftColor: primaryColor }]}>
+            <ThemedText style={styles.detailStopLabel}>Pickup</ThemedText>
+            <ThemedText style={styles.detailStopCity} numberOfLines={1}>{detailPickupName}</ThemedText>
+            <View style={styles.detailStopTimeRow}>
+              <IconSymbol name="clock.fill" size={8} color={primaryColor} />
+              <ThemedText style={styles.detailStopTime}>{stopArrivalTime(l.departure_time, detailPickupOffset)}</ThemedText>
+            </View>
+          </View>
+          <View style={styles.detailStopDivider} />
+          <View style={[styles.detailStopBlock, { borderLeftColor: '#DC2626' }]}>
+            <ThemedText style={styles.detailStopLabel}>Drop</ThemedText>
+            <ThemedText style={styles.detailStopCity} numberOfLines={1}>{detailDropName}</ThemedText>
+            <View style={styles.detailStopTimeRow}>
+              <IconSymbol name="clock.fill" size={8} color="#DC2626" />
+              <ThemedText style={[styles.detailStopTime, { color: '#DC2626' }]}>{stopArrivalTime(l.departure_time, detailDropOffset)}</ThemedText>
+            </View>
           </View>
         </View>
 
@@ -412,10 +461,7 @@ export default function LoadDetailsScreen() {
             <ThemedText type="titleMd" style={styles.posterName}>{load.user?.business_name || load.user?.full_name}</ThemedText>
             <ThemedText type="bodySm" style={styles.posterCity}>{load.user?.city}</ThemedText>
           </View>
-          <View style={[styles.verifiedBadge, { backgroundColor: '#05966912' }]}>
-            <IconSymbol name="checkmark.seal.fill" size={12} color="#059669" />
-            <ThemedText type="labelMd" style={styles.verifiedText}>Verified</ThemedText>
-          </View>
+          <TrustBadge type="phone_verified" size="sm" />
         </View>
 
         {load.notes ? (
@@ -429,10 +475,11 @@ export default function LoadDetailsScreen() {
       {!isOwner && (
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
           {(() => {
-            const isDisabled = hasRequested || hasRejected;
-            const label = hasRejected ? 'Request Rejected' : hasRequested ? 'Already Requested' : 'Request for Booking';
-            const bgColor = hasRejected ? '#DC2626' : hasRequested ? '#A8A29E' : primaryColor;
-            const icon = hasRejected ? 'xmark.circle.fill' : hasRequested ? 'checkmark.circle.fill' : 'shippingbox.fill';
+            const isFull = load.available_space === 0;
+            const isDisabled = hasRequested || hasRejected || isFull;
+            const label = isFull ? 'Fully Booked' : hasRejected ? 'Request Rejected' : hasRequested ? 'Already Requested' : 'Request for Booking';
+            const bgColor = isFull ? '#78716C' : hasRejected ? '#DC2626' : hasRequested ? '#A8A29E' : primaryColor;
+            const icon = isFull ? 'xmark.circle.fill' : hasRejected ? 'xmark.circle.fill' : hasRequested ? 'checkmark.circle.fill' : 'shippingbox.fill';
             return (
               <TouchableOpacity
                 style={[styles.bookBtn, { backgroundColor: bgColor }, isDisabled && { opacity: 0.7 }]}
@@ -449,17 +496,17 @@ export default function LoadDetailsScreen() {
       )}
 
       <Modal visible={showBooking} transparent animationType="slide" onRequestClose={() => setShowBooking(false)}>
-        <View style={styles.modalMask}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalBar} />
-            <View style={styles.modalHead}>
-              <ThemedText type="titleMd" style={styles.modalTitle}>Request to Book</ThemedText>
-              <TouchableOpacity onPress={() => setShowBooking(false)}>
-                <IconSymbol name="xmark.circle.fill" size={22} color="#D6D3D1" />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.modalMask}>
+            <View style={[styles.modalSheet, { paddingBottom: Math.max(24, keyboardHeight) }]}>
+              <View style={styles.modalBar} />
+              <View style={styles.modalHead}>
+                <ThemedText type="titleMd" style={styles.modalTitle}>Request to Book</ThemedText>
+                <TouchableOpacity onPress={() => setShowBooking(false)}>
+                  <IconSymbol name="xmark.circle.fill" size={22} color="#D6D3D1" />
+                </TouchableOpacity>
+              </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               <View style={styles.routeDisplay}>
                 <View style={styles.routeItem}>
                   <View style={[styles.routeDot, { backgroundColor: primaryColor }]} />
@@ -488,6 +535,7 @@ export default function LoadDetailsScreen() {
                 style={styles.goodsInput}
                 placeholder="What are you shipping?"
                 placeholderTextColor="#A8A29E"
+                allowFontScaling={false}
                 value={goodsDesc}
                 onChangeText={setGoodsDesc}
                 multiline
@@ -518,11 +566,11 @@ export default function LoadDetailsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F0' },
-  headerGradient: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  headerGradient: { paddingHorizontal: 20, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   logo: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  scrollContent: { padding: 16, paddingBottom: 100 },
+  scrollContent: { padding: 16, paddingBottom: 140 },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   loaderIcon: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   retryBtn: { paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10 },
@@ -538,6 +586,17 @@ const styles = StyleSheet.create({
   heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   heroBadgeText: { fontSize: 10, fontWeight: '800' },
   heroId: { color: '#A8A29E', fontWeight: '700', fontSize: 12 },
+
+  detailStopRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+  detailStopBlock: {
+    flex: 1, backgroundColor: '#FAFAF9', borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: '#F0EFEE', borderLeftWidth: 3, gap: 3,
+  },
+  detailStopLabel: { color: '#A8A29E', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+  detailStopCity: { color: '#1C1917', fontSize: 15, fontWeight: '700' },
+  detailStopTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  detailStopTime: { color: '#0D9488', fontSize: 11, fontWeight: '700' },
+  detailStopDivider: { width: 1, backgroundColor: '#F0EFEE' },
 
   card: { backgroundColor: '#fff', borderRadius: 24, padding: 20, marginBottom: 14, ...Shadows.md },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
@@ -595,8 +654,6 @@ const styles = StyleSheet.create({
   posterInfo: { flex: 1 },
   posterName: { color: '#1C1917', fontWeight: '700', fontSize: 15 },
   posterCity: { color: '#78716C', marginTop: 2, fontSize: 12 },
-  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  verifiedText: { color: '#059669', fontSize: 9, fontWeight: '800' },
 
   notesCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, flexDirection: 'row', gap: 8, marginBottom: 14, ...Shadows.sm },
   notesText: { color: '#57534E', flex: 1, fontSize: 12 },
@@ -606,7 +663,7 @@ const styles = StyleSheet.create({
   bookText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
   modalMask: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingTop: 12, maxHeight: '76%' },
+  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingTop: 12, maxHeight: '90%' },
   modalBar: { width: 40, height: 4, backgroundColor: '#E7E5E4', borderRadius: 2, alignSelf: 'center', marginBottom: 12 },
   modalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { color: '#1C1917', fontWeight: '700', fontSize: 18 },

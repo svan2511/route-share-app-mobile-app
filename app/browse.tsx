@@ -1,5 +1,6 @@
 import { FullScreenLoader } from '@/components/full-screen-loader';
 import { ThemedText } from '@/components/themed-text';
+import { TrustBadge } from '@/components/trust-badge';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Shadows } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +11,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, PanResponder, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useToast } from '@/components/toast';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
@@ -17,10 +19,21 @@ const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
 const getInitial = (n: string) => n?.charAt(0)?.toUpperCase() || '?';
 const getColor = (id: number) => ['#8B5CF6', '#0D9488', '#EC4899', '#059669', '#2563EB', '#DC2626'][id % 6];
 
+function stopArrivalTime(departureTime: string, offsetMinutes: number): string {
+  const [h, m] = departureTime.split(':').map(Number);
+  const totalMin = h * 60 + m + offsetMinutes;
+  const hours = Math.floor((totalMin % (24 * 60)) / 60);
+  const mins = totalMin % 60;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${hour12}:${String(mins).padStart(2, '0')} ${ampm}`;
+}
+
 export default function BrowseScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { from, to } = useLocalSearchParams<{ from: string; to: string }>();
+  const toast = useToast();
 
   const [loads, setLoads] = useState<Load[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -127,6 +140,7 @@ export default function BrowseScreen() {
     const idx = idxRef.current;
     const item = loadsRef.current[idx];
     if (!item) return;
+    if (item.available_space === 0) { toast.show({ message: 'Ride is full — you can only skip this ride', type: 'info' }); snapBack(); return; }
     Animated.sequence([
       Animated.timing(pan, { toValue: { x: 40, y: 0 }, duration: 80, useNativeDriver: true }),
       Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: true, friction: 6 }),
@@ -160,9 +174,12 @@ export default function BrowseScreen() {
         if (Math.abs(g.dx) < 10 && Math.abs(g.dy) < 10) {
           const idx = idxRef.current;
           const item = loadsRef.current[idx];
-          if (item) {
+          if (item && item.available_space > 0) {
             snapBack();
             router.push({ pathname: '/load-details/[id]', params: { id: String(item.id), from, to } });
+          } else if (item) {
+            toast.show({ message: 'Ride is full — you can only skip this ride', type: 'info' });
+            snapBack();
           }
         } else if (g.dx > SWIPE_THRESHOLD) {
           swipeRight();
@@ -180,29 +197,46 @@ export default function BrowseScreen() {
     const isFull = item.available_space === 0;
     const isUrgent = item.available_space < 20 && item.available_space > 0;
     const ownerName = item.user?.business_name || item.user?.full_name || 'Unknown';
-    const timeStr = item.estimated_pickup_time
-      ? formatDateTime(item.estimated_pickup_date!, item.estimated_pickup_time)
-      : formatDateTime(item.departure_date, item.departure_time);
+    const timeStr = formatDateTime(item.departure_date, item.departure_time);
     const [datePart, timePart] = timeStr.split(',');
+
+    const routeStops = item.route_snapshot?.stops || item.route?.stops || [];
+    const fromLower = from?.toLowerCase() || '';
+    const toLower = to?.toLowerCase() || '';
+
+    const pickupStop = routeStops.find(s => s.stop_name.toLowerCase().includes(fromLower));
+    const pickupName = pickupStop?.stop_name || item.from_city;
+    const pickupOffset = pickupStop ? pickupStop.time_offset_minutes : 0;
+
+    const dropStop = routeStops.find(s => s.stop_name.toLowerCase().includes(toLower));
+    const dropName = dropStop?.stop_name || item.to_city;
+
+    const pickupTime = stopArrivalTime(item.departure_time, pickupOffset);
+
+    // Final destination offset: use stop's cumulative offset if found, otherwise compute from last stop + destination_offset_minutes
+    const toCityLower = (item.to_city || '').toLowerCase();
+    const destInStops = routeStops.find(s => s.stop_name.toLowerCase() === toCityLower);
+    const lastStopOffset = routeStops.length > 0 ? routeStops[routeStops.length - 1].time_offset_minutes : 0;
+    const destOffset = destInStops
+      ? destInStops.time_offset_minutes
+      : (item.route_snapshot?.destination_offset_minutes
+        ? lastStopOffset + item.route_snapshot.destination_offset_minutes
+        : lastStopOffset + 60);
+    const destTime = stopArrivalTime(item.departure_time, destOffset);
+
+    const dropOffset = dropStop
+      ? dropStop.time_offset_minutes
+      : destOffset;
+    const dropTime = stopArrivalTime(item.departure_time, dropOffset);
     return (
       <>
-        {/* Animated Swipe Hint */}
-        <Animated.View style={[styles.swipeHintTop, { opacity: hintOpacity }]}>
-          <View style={styles.swipeHintSide}>
-            <View style={[styles.swipeIcon, { borderColor: '#DC2626' }]}>
-              <IconSymbol name="arrow.uturn.backward" size={14} color="#DC2626" />
-            </View>
-            <ThemedText style={styles.swipeHintTopSkip}>Skip this ride</ThemedText>
-          </View>
-          <View style={styles.swipeHintDividerV} />
-          <View style={styles.swipeHintSide}>
-            <ThemedText style={styles.swipeHintTopView}>View details</ThemedText>
-            <View style={[styles.swipeIcon, { borderColor: '#0D9488' }]}>
-              <IconSymbol name="arrow.uturn.forward" size={14} color="#0D9488" />
+        {isFull && (
+          <View style={styles.fullBadge}>
+            <View style={styles.fullBadgeInner}>
+              <ThemedText style={styles.fullBadgeText}>FULL</ThemedText>
             </View>
           </View>
-        </Animated.View>
-
+        )}
         {/* Active Badge */}
         <View style={styles.liveBadge}>
           <LinearGradient colors={['#059669', '#047857']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.liveBadgeInner}>
@@ -210,6 +244,23 @@ export default function BrowseScreen() {
             <ThemedText style={styles.liveBadgeText}>ACTIVE</ThemedText>
           </LinearGradient>
         </View>
+        <View style={isFull ? styles.cardBlurred : undefined}>
+          {/* Animated Swipe Hint */}
+          <Animated.View style={[styles.swipeHintTop, { opacity: hintOpacity }]}>
+            <View style={styles.swipeHintSide}>
+              <View style={[styles.swipeIcon, { borderColor: '#DC2626' }]}>
+                <IconSymbol name="arrow.uturn.backward" size={14} color="#DC2626" />
+              </View>
+              <ThemedText style={styles.swipeHintTopSkip}>Skip this ride</ThemedText>
+            </View>
+            <View style={styles.swipeHintDividerV} />
+            <View style={styles.swipeHintSide}>
+              <ThemedText style={styles.swipeHintTopView}>View details</ThemedText>
+              <View style={[styles.swipeIcon, { borderColor: '#0D9488' }]}>
+                <IconSymbol name="arrow.uturn.forward" size={14} color="#0D9488" />
+              </View>
+            </View>
+          </Animated.View>
 
         {/* Route Header */}
         <View style={styles.routeHeader}>
@@ -217,8 +268,11 @@ export default function BrowseScreen() {
           <View style={styles.routeBody}>
             <View style={styles.routeCities}>
               <View style={styles.routeCityBlock}>
-                <View style={[styles.routeCityDot, { backgroundColor: '#0D9488' }]} />
-                <ThemedText style={styles.routeCityName}>{item.from_city}</ThemedText>
+                <View style={styles.routeCityRow}>
+                  <View style={[styles.routeCityDot, { backgroundColor: '#0D9488' }]} />
+                  <ThemedText style={styles.routeCityName}>{item.from_city}</ThemedText>
+                </View>
+                <ThemedText style={styles.routeTime}>{stopArrivalTime(item.departure_time, 0)}</ThemedText>
               </View>
               <View style={styles.routeArrow}>
                 <View style={styles.routeArrowLine} />
@@ -226,8 +280,11 @@ export default function BrowseScreen() {
                 <View style={styles.routeArrowLine} />
               </View>
               <View style={styles.routeCityBlock}>
-                <View style={[styles.routeCityDot, { backgroundColor: '#DC2626' }]} />
-                <ThemedText style={styles.routeCityName}>{item.to_city}</ThemedText>
+                <View style={styles.routeCityRow}>
+                  <View style={[styles.routeCityDot, { backgroundColor: '#DC2626' }]} />
+                  <ThemedText style={styles.routeCityName}>{item.to_city}</ThemedText>
+                </View>
+                <ThemedText style={styles.routeTime}>{destTime}</ThemedText>
               </View>
             </View>
             <View style={styles.routeMeta}>
@@ -235,34 +292,38 @@ export default function BrowseScreen() {
                 <IconSymbol name="calendar" size={11} color="#A8A29E" />
                 <ThemedText style={styles.routeMetaText}>{datePart}</ThemedText>
               </View>
-              <View style={styles.routeMetaDivider} />
-              <View style={styles.routeMetaItem}>
-                <IconSymbol name="clock.fill" size={11} color="#A8A29E" />
-                <ThemedText style={styles.routeMetaText}>{timePart?.trim() || ''}</ThemedText>
-              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Pickup & Drop Stops */}
+        <View style={styles.stopInfoRow}>
+          <View style={[styles.stopInfoBlock, { borderLeftColor: '#0D9488' }]}>
+            <ThemedText style={styles.stopInfoLabel}>Pickup</ThemedText>
+            <ThemedText style={styles.stopInfoCity} numberOfLines={1}>{pickupName}</ThemedText>
+            <View style={styles.stopInfoTimeRow}>
+              <IconSymbol name="clock.fill" size={9} color="#0D9488" />
+              <ThemedText style={styles.stopInfoTime}>{pickupTime}</ThemedText>
+            </View>
+          </View>
+          <View style={styles.stopInfoDivider} />
+          <View style={[styles.stopInfoBlock, { borderLeftColor: '#DC2626' }]}>
+            <ThemedText style={styles.stopInfoLabel}>Drop</ThemedText>
+            <ThemedText style={styles.stopInfoCity} numberOfLines={1}>{dropName}</ThemedText>
+            <View style={styles.stopInfoTimeRow}>
+              <IconSymbol name="clock.fill" size={9} color="#DC2626" />
+              <ThemedText style={[styles.stopInfoTime, { color: '#DC2626' }]}>{dropTime}</ThemedText>
             </View>
           </View>
         </View>
 
         {/* Badges */}
-        {(isFull || isUrgent || item.notes) && (
+        {isUrgent && (
           <View style={styles.badgeRow}>
-            {isFull && (
-              <View style={styles.badgeFull}>
-                <IconSymbol name="checkmark.seal.fill" size={10} color="#fff" />
-                <ThemedText style={styles.badgeText}>Full</ThemedText>
-              </View>
-            )}
             {isUrgent && (
               <View style={styles.badgeUrgent}>
                 <IconSymbol name="exclamationmark.triangle.fill" size={10} color="#fff" />
                 <ThemedText style={styles.badgeText}>Filling Fast</ThemedText>
-              </View>
-            )}
-            {item.notes && (
-              <View style={styles.badgeNote}>
-                <IconSymbol name="note.text" size={10} color="#0D9488" />
-                <ThemedText style={styles.badgeNoteText}>Notes</ThemedText>
               </View>
             )}
           </View>
@@ -323,7 +384,7 @@ export default function BrowseScreen() {
             <View style={styles.footerInfo}>
               <View style={styles.footerNameRow}>
                 <ThemedText style={styles.footerName} numberOfLines={1}>{ownerName}</ThemedText>
-                <IconSymbol name="checkmark.seal.fill" size={12} color="#0D9488" />
+                <TrustBadge type="phone_verified" size="sm" />
               </View>
               <ThemedText style={styles.footerMeta}>{item.user?.city || 'Verified shipper'}</ThemedText>
             </View>
@@ -331,6 +392,7 @@ export default function BrowseScreen() {
           <View style={[styles.footerArrow, { backgroundColor: color + '12' }]}>
             <IconSymbol name="chevron.right" size={12} color={color} />
           </View>
+        </View>
         </View>
       </>
     );
@@ -530,6 +592,10 @@ const styles = StyleSheet.create({
   paperLayer: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%', backgroundColor: '#fff', borderRadius: 28, borderWidth: 1.5, borderColor: '#D6D3D1', ...Shadows.lg },
 
   card: { backgroundColor: '#fff', borderRadius: 28, padding: 20, ...Shadows.xl, borderWidth: 1.5, borderColor: '#E7E5E4' },
+  cardBlurred: { opacity: 0.55 },
+  fullBadge: { position: 'absolute', top: -6, left: -6, zIndex: 20 },
+  fullBadgeInner: { backgroundColor: '#DC2626', paddingHorizontal: 10, paddingVertical: 5, borderTopRightRadius: 8, transform: [{ rotate: '-12deg' }] },
+  fullBadgeText: { color: '#fff', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
 
   // Diagonal LIVE Badge
   liveBadge: { position: 'absolute', top: -6, right: -6, zIndex: 20 },
@@ -556,17 +622,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', marginBottom: 12,
   },
   routeAccent: { width: 5 },
-  routeBody: { flex: 1, padding: 16, gap: 10 },
+  routeBody: { flex: 1, padding: 16, gap: 6 },
   routeCities: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  routeCityBlock: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  routeCityBlock: { gap: 2 },
+  routeCityRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   routeCityDot: { width: 8, height: 8, borderRadius: 4 },
   routeCityName: { color: '#1C1917', fontSize: 17, fontWeight: '800' },
+  routeTime: { color: '#A8A29E', fontSize: 10, fontWeight: '700', paddingLeft: 16 },
   routeArrow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
   routeArrowLine: { flex: 1, height: 1.5, backgroundColor: '#F0EFEE' },
   routeMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   routeMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   routeMetaText: { color: '#A8A29E', fontSize: 11, fontWeight: '600' },
   routeMetaDivider: { width: 1, height: 10, backgroundColor: '#E7E5E4' },
+
+  // Pickup & Drop Stops (compact)
+  stopInfoRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  stopInfoBlock: {
+    flex: 1, backgroundColor: '#FAFAF9', borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: '#F0EFEE', borderLeftWidth: 3, gap: 2,
+  },
+  stopInfoLabel: { color: '#A8A29E', fontSize: 8, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+  stopInfoCity: { color: '#1C1917', fontSize: 12, fontWeight: '700' },
+  stopInfoTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
+  stopInfoTime: { color: '#0D9488', fontSize: 10, fontWeight: '700' },
+  stopInfoDivider: { width: 1, backgroundColor: '#F0EFEE' },
 
   // Badges Row
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider, useNavigation } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform } from 'react-native';
+import { Platform, ActivityIndicator, View } from 'react-native';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import 'react-native-reanimated';
 import * as Notifications from 'expo-notifications';
 import { AuthProvider } from '@/context/AuthContext';
@@ -28,6 +29,13 @@ export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation();
   const router = useRouter();
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+  });
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -119,6 +127,14 @@ export default function RootLayout() {
       unsubscribeTransitionEnd();
     };
   }, [navigation]);
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#171717', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#14B8A6" />
+      </View>
+    );
+  }
 
   return (
     <AuthProvider>

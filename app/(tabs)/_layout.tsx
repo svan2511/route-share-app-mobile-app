@@ -1,10 +1,9 @@
 import { Tabs } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 
-import { HapticTab } from '@/components/haptic-tab';
+import { CustomTabBar } from '@/components/custom-tab-bar';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -13,7 +12,6 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme() ?? 'light';
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
@@ -40,16 +38,9 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme].tint,
         tabBarInactiveTintColor: Colors[colorScheme].icon,
         headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarStyle: {
-          backgroundColor: Colors[colorScheme].surface,
-          borderTopWidth: 1,
-          borderTopColor: Colors[colorScheme].outlineVariant,
-          height: 56 + insets.bottom,
-          paddingBottom: insets.bottom + 6,
-          paddingTop: 6,
-        },
-      }}>
+      }}
+      tabBar={(props) => <CustomTabBar {...props} />}
+    >
       <Tabs.Screen
         name="index"
         options={{
