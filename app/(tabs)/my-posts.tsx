@@ -271,7 +271,7 @@ export default function MyPostsScreen() {
               const displayStatus = post.status === 'active' && isRideRunning(post) ? 'running' : post.status;
               const sb = statusBadge(displayStatus);
               const reqs = (requestsByLoad[post.id] || [])
-                .filter(r => r.status !== 'cancelled' && r.status !== 'rejected')
+                .filter(r => r.status !== 'cancelled')
                 .sort(
                   (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                 );
